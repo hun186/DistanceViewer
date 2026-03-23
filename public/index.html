@@ -50,6 +50,10 @@ let focusMode = false;
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
 function getFocusColor() { return document.getElementById('focusColor').value; }
+function toCoordNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
 function setStatus(message, isError = false) {
   const box = document.getElementById('status');
   box.textContent = message;
@@ -145,9 +149,12 @@ async function redraw() {
 }
 
 function togglePoint(x, y, shouldApplyFocusColor = false) {
-  x = Math.round(x); y = Math.round(y);
+  x = Math.round(toCoordNumber(x)); y = Math.round(toCoordNumber(y));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
   if (x < 0 || x > 100 || y < 0 || y > 100) return;
-  const idx = selectedPoints.findIndex(p => p.x === x && p.y === y);
+  const idx = selectedPoints.findIndex((p) => (
+    Math.round(toCoordNumber(p.x)) === x && Math.round(toCoordNumber(p.y)) === y
+  ));
   if (idx >= 0) {
     if (shouldApplyFocusColor) selectedPoints[idx].color = getFocusColor();
     else selectedPoints.splice(idx, 1);
