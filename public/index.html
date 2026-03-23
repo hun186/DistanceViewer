@@ -40,6 +40,16 @@
     <label>神蹟
       <select id="wonder"></select>
     </label>
+    <label>X 範圍
+      <input id="xMin" type="number" min="0" max="100" value="0" style="width:70px" />
+      ~
+      <input id="xMax" type="number" min="0" max="100" value="100" style="width:70px" />
+    </label>
+    <label>Y 範圍
+      <input id="yMin" type="number" min="0" max="100" value="0" style="width:70px" />
+      ~
+      <input id="yMax" type="number" min="0" max="100" value="100" style="width:70px" />
+    </label>
     <label>新增點顏色
       <input id="newPointColor" type="color" value="#1f77b4" />
     </label>
@@ -124,9 +134,31 @@ async function loadOptions() {
 async function addFilteredPoints() {
   const resource = document.getElementById('resource').value;
   const wonder = document.getElementById('wonder').value;
-  const qs = new URLSearchParams({ resource, wonder });
+  const xMin = Math.round(toCoordNumber(document.getElementById('xMin').value));
+  const xMax = Math.round(toCoordNumber(document.getElementById('xMax').value));
+  const yMin = Math.round(toCoordNumber(document.getElementById('yMin').value));
+  const yMax = Math.round(toCoordNumber(document.getElementById('yMax').value));
+
+  if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) {
+    setStatus('請輸入有效的 X / Y 範圍整數。', true);
+    return;
+  }
+  if (!(0 <= xMin && xMin <= xMax && xMax <= 100 && 0 <= yMin && yMin <= yMax && yMax <= 100)) {
+    setStatus('X / Y 範圍需在 0~100，且最小值不可大於最大值。', true);
+    return;
+  }
+
+  const qs = new URLSearchParams({
+    resource, wonder,
+    x_min: String(xMin), x_max: String(xMax),
+    y_min: String(yMin), y_max: String(yMax),
+  });
   await withStatus('正在新增符合條件點...', async () => {
     const r = await fetch(endpoint(`/api/points/query?${qs.toString()}`));
+    if (!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${r.status}`);
+    }
     const data = await r.json();
     const existing = new Set(selectedPoints.map(p => `${p.x},${p.y}`));
     data.forEach(p => {
