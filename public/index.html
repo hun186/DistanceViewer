@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DistanceViewer Web</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    #chart { width: 100%; height: 78vh; }
+    .hint { color: #555; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>DistanceViewer（Web 版）</h2>
+  <div class="toolbar">
+    <label>資源
+      <select id="resource"></select>
+    </label>
+    <label>神蹟
+      <select id="wonder"></select>
+    </label>
+    <button id="addFiltered">新增符合條件點</button>
+    <button id="toggleEdges">切換邊線</button>
+    <button id="toggleLabels">切換標籤</button>
+    <button id="save">儲存到瀏覽器</button>
+    <button id="load">讀取瀏覽器儲存</button>
+    <button id="clear">清空所有點</button>
+  </div>
+  <p class="hint">左鍵點圖新增點；點到既有點會刪除。座標範圍：0~100。</p>
+  <div id="chart"></div>
+
+<script>
+let selectedPoints = [];
+let showEdges = true;
+let showLabels = true;
+
+function endpoint(path) { return path; }
+
+function optionHTML(items) {
+  return ['<option value="">(不限)</option>', ...items.map(i => `<option value="${i}">${i}</option>`)].join('');
+}
+
+async function loadOptions() {
+  const r = await fetch(endpoint('/api/options'));
+  const data = await r.json();
+  document.getElementById('resource').innerHTML = optionHTML(data.resources || []);
+  document.getElementById('wonder').innerHTML = optionHTML(data.wonders || []);
+}
+
+async function addFilteredPoints() {
+  const resource = document.getElementById('resource').value;
+  const wonder = document.getElementById('wonder').value;
+  const qs = new URLSearchParams({ resource, wonder });
+  const r = await fetch(endpoint(`/api/points/query?${qs.toString()}`));
+  const data = await r.json();
+  const existing = new Set(selectedPoints.map(p => `${p.x},${p.y}`));
+  data.forEach(p => {
+    const key = `${p.x},${p.y}`;
+    if (!existing.has(key)) selectedPoints.push({ ...p, color: 'blue' });
+  });
+  await redraw();
+}
+
+async function triangulate(points) {
+  const r = await fetch(endpoint('/api/triangulate'), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ points })
+  });
+  return r.json();
+}
+
+async function redraw() {
+  const tracePoints = {
+    x: selectedPoints.map(p => p.x),
+    y: selectedPoints.map(p => p.y),
+    mode: showLabels ? 'markers+text' : 'markers',
+    type: 'scatter',
+    marker: { size: 10, color: selectedPoints.map(p => p.color || 'blue') },
+    text: selectedPoints.map(p => `(${p.x}, ${p.y})<br>${p.resource || ''}<br>${p.wonder || ''}`),
+    textposition: 'top right',
+    hovertemplate: '%{text}<extra></extra>'
+  };
+
+  const traces = [tracePoints];
+  if (showEdges && selectedPoints.length >= 3) {
+    const edges = await triangulate(selectedPoints);
+    edges.forEach(e => {
+      traces.push({
+        x: [e.x1, e.x2], y: [e.y1, e.y2], mode: 'lines', type: 'scatter',
+        line: { color: '#333', width: 1 }, hovertemplate: `距離: ${e.distance}<extra></extra>`
+      });
+    });
+  }
+
+  const layout = {
+    xaxis: { range: [0, 100], dtick: 5 },
+    yaxis: { range: [100, 0], dtick: 5 },
+    margin: { l: 40, r: 20, b: 40, t: 20 },
+    showlegend: false,
+  };
+
+  Plotly.newPlot('chart', traces, layout, { responsive: true });
+}
+
+function togglePoint(x, y) {
+  x = Math.round(x); y = Math.round(y);
+  if (x < 0 || x > 100 || y < 0 || y > 100) return;
+  const idx = selectedPoints.findIndex(p => p.x === x && p.y === y);
+  if (idx >= 0) selectedPoints.splice(idx, 1);
+  else selectedPoints.push({ x, y, resource: '', wonder: '', color: 'blue' });
+}
+
+function bindEvents() {
+  document.getElementById('addFiltered').onclick = addFilteredPoints;
+  document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
+  document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
+  document.getElementById('save').onclick = () => localStorage.setItem('distanceViewerPoints', JSON.stringify(selectedPoints));
+  document.getElementById('load').onclick = async () => {
+    selectedPoints = JSON.parse(localStorage.getItem('distanceViewerPoints') || '[]');
+    await redraw();
+  };
+  document.getElementById('clear').onclick = async () => { selectedPoints = []; await redraw(); };
+
+  document.getElementById('chart').on('plotly_click', async (eventData) => {
+    const pt = eventData.points?.[0];
+    if (!pt) return;
+    togglePoint(pt.x, pt.y);
+    await redraw();
+  });
+
+  document.getElementById('chart').oncontextmenu = async (e) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const yRatio = (e.clientY - rect.top) / rect.height;
+    const x = 0 + xRatio * 100;
+    const y = 100 - yRatio * 100;
+    togglePoint(x, y);
+    await redraw();
+  };
+}
+
+(async function init() {
+  await loadOptions();
+  await redraw();
+  bindEvents();
+})();
+</script>
+</body>
+</html>
