@@ -8,6 +8,23 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .toolbar.hidden { display: none; }
+    .view-controls { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
+    #mapPane { width: min(92vw, 78vh); margin: 0 auto; }
+    #mapPane:fullscreen {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    #mapPane:fullscreen #chart {
+      width: min(calc(100vw - 32px), calc(100vh - 32px));
+      height: min(calc(100vw - 32px), calc(100vh - 32px));
+    }
     #chart { width: min(92vw, 78vh); height: min(92vw, 78vh); margin: 0 auto; }
     .hint { color: #555; font-size: 14px; }
     .status { margin: 8px 0 12px; color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 4px; padding: 8px 10px; min-height: 18px; }
@@ -37,15 +54,22 @@
     <button id="load">讀取瀏覽器儲存</button>
     <button id="clear">清空所有點</button>
   </div>
+  <div class="view-controls">
+    <button id="toggleToolbar">隱藏工具列</button>
+    <button id="toggleFullscreen">地圖全螢幕</button>
+  </div>
   <p class="hint">左鍵點圖可刪除點（或在關注模式設定關注色），右鍵可新增/刪除。座標範圍：0~100。</p>
   <div id="status" class="status">準備就緒。</div>
-  <div id="chart"></div>
+  <div id="mapPane">
+    <div id="chart"></div>
+  </div>
 
 <script>
 let selectedPoints = [];
 let showEdges = true;
 let showLabels = true;
 let focusMode = false;
+let toolbarVisible = true;
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -74,6 +98,14 @@ function syncFocusButtonText() {
   document.getElementById('setFocusPoint').textContent = focusMode
     ? '關注模式：開（點一下點可上色）'
     : '關注模式：關';
+}
+function syncViewControlText() {
+  document.getElementById('toggleToolbar').textContent = toolbarVisible
+    ? '隱藏工具列'
+    : '顯示工具列';
+  document.getElementById('toggleFullscreen').textContent = document.fullscreenElement
+    ? '退出全螢幕'
+    : '地圖全螢幕';
 }
 
 function optionHTML(items) {
@@ -164,6 +196,24 @@ function togglePoint(x, y, shouldApplyFocusColor = false) {
 }
 
 function bindEvents() {
+  const toolbar = document.querySelector('.toolbar');
+  const mapPane = document.getElementById('mapPane');
+
+  document.getElementById('toggleToolbar').onclick = () => {
+    toolbarVisible = !toolbarVisible;
+    toolbar.classList.toggle('hidden', !toolbarVisible);
+    syncViewControlText();
+    Plotly.Plots.resize(document.getElementById('chart'));
+  };
+  document.getElementById('toggleFullscreen').onclick = async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await mapPane.requestFullscreen();
+  };
+  document.addEventListener('fullscreenchange', () => {
+    syncViewControlText();
+    Plotly.Plots.resize(document.getElementById('chart'));
+  });
+
   document.getElementById('addFiltered').onclick = addFilteredPoints;
   document.getElementById('setFocusPoint').onclick = () => {
     focusMode = !focusMode;
@@ -206,6 +256,7 @@ function bindEvents() {
 
 (async function init() {
   syncFocusButtonText();
+  syncViewControlText();
   setStatus('初始化中，請稍候...');
   await loadOptions();
   await redraw();
