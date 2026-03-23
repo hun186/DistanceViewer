@@ -88,6 +88,19 @@ function toCoordNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
 }
+function getConfiguredRange() {
+  const xMin = Math.round(toCoordNumber(document.getElementById('xMin').value));
+  const xMax = Math.round(toCoordNumber(document.getElementById('xMax').value));
+  const yMin = Math.round(toCoordNumber(document.getElementById('yMin').value));
+  const yMax = Math.round(toCoordNumber(document.getElementById('yMax').value));
+  const isValid = [xMin, xMax, yMin, yMax].every(Number.isFinite)
+    && 0 <= xMin && xMin <= xMax && xMax <= 100
+    && 0 <= yMin && yMin <= yMax && yMax <= 100;
+  if (!isValid) {
+    return { xMin: 0, xMax: 100, yMin: 0, yMax: 100, isValid: false };
+  }
+  return { xMin, xMax, yMin, yMax, isValid: true };
+}
 function setStatus(message, isError = false) {
   const box = document.getElementById('status');
   box.textContent = message;
@@ -134,16 +147,9 @@ async function loadOptions() {
 async function addFilteredPoints() {
   const resource = document.getElementById('resource').value;
   const wonder = document.getElementById('wonder').value;
-  const xMin = Math.round(toCoordNumber(document.getElementById('xMin').value));
-  const xMax = Math.round(toCoordNumber(document.getElementById('xMax').value));
-  const yMin = Math.round(toCoordNumber(document.getElementById('yMin').value));
-  const yMax = Math.round(toCoordNumber(document.getElementById('yMax').value));
+  const { xMin, xMax, yMin, yMax, isValid } = getConfiguredRange();
 
-  if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) {
-    setStatus('請輸入有效的 X / Y 範圍整數。', true);
-    return;
-  }
-  if (!(0 <= xMin && xMin <= xMax && xMax <= 100 && 0 <= yMin && yMin <= yMax && yMax <= 100)) {
+  if (!isValid) {
     setStatus('X / Y 範圍需在 0~100，且最小值不可大於最大值。', true);
     return;
   }
@@ -179,6 +185,7 @@ async function triangulate(points) {
 
 async function redraw() {
   setStatus('正在重繪圖表...');
+  const { xMin, xMax, yMin, yMax } = getConfiguredRange();
   const tracePoints = {
     x: selectedPoints.map(p => p.x),
     y: selectedPoints.map(p => p.y),
@@ -202,8 +209,8 @@ async function redraw() {
   }
 
   const layout = {
-    xaxis: { range: [0, 100], dtick: 5 },
-    yaxis: { range: [100, 0], dtick: 5, scaleanchor: 'x', scaleratio: 1 },
+    xaxis: { range: [xMin, xMax], dtick: 5 },
+    yaxis: { range: [yMax, yMin], dtick: 5, scaleanchor: 'x', scaleratio: 1 },
     margin: { l: 40, r: 20, b: 40, t: 20 },
     showlegend: false,
   };
@@ -247,6 +254,16 @@ function bindEvents() {
   });
 
   document.getElementById('addFiltered').onclick = addFilteredPoints;
+  ['xMin', 'xMax', 'yMin', 'yMax'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', async () => {
+      const { isValid } = getConfiguredRange();
+      if (!isValid) {
+        setStatus('X / Y 範圍需在 0~100，且最小值不可大於最大值。', true);
+        return;
+      }
+      await redraw();
+    });
+  });
   document.getElementById('setFocusPoint').onclick = () => {
     focusMode = !focusMode;
     syncFocusButtonText();
@@ -276,11 +293,12 @@ function bindEvents() {
 
   document.getElementById('chart').oncontextmenu = async (e) => {
     e.preventDefault();
+    const { xMin, xMax, yMin, yMax } = getConfiguredRange();
     const rect = e.currentTarget.getBoundingClientRect();
     const xRatio = (e.clientX - rect.left) / rect.width;
     const yRatio = (e.clientY - rect.top) / rect.height;
-    const x = 0 + xRatio * 100;
-    const y = 100 - yRatio * 100;
+    const x = xMin + xRatio * (xMax - xMin);
+    const y = yMax - yRatio * (yMax - yMin);
     togglePoint(x, y);
     await redraw();
   };
