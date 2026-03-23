@@ -80,6 +80,7 @@ let showEdges = true;
 let showLabels = true;
 let focusMode = false;
 let toolbarVisible = true;
+let chartInitialized = false;
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -215,7 +216,12 @@ async function redraw() {
     showlegend: false,
   };
 
-  await Plotly.newPlot('chart', traces, layout, { responsive: true });
+  if (chartInitialized) {
+    await Plotly.react('chart', traces, layout, { responsive: true });
+  } else {
+    await Plotly.newPlot('chart', traces, layout, { responsive: true });
+    chartInitialized = true;
+  }
   setStatus('圖表更新完成。');
 }
 
