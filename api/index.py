@@ -23,7 +23,27 @@ def options():
 def query_points():
     resource = request.args.get("resource", "").strip()
     wonder = request.args.get("wonder", "").strip()
-    return jsonify(service.query_points(resource=resource, wonder=wonder))
+    try:
+        x_min = int(request.args.get("x_min", 0))
+        x_max = int(request.args.get("x_max", 100))
+        y_min = int(request.args.get("y_min", 0))
+        y_max = int(request.args.get("y_max", 100))
+    except ValueError:
+        return jsonify({"error": "座標範圍必須是整數。"}), 400
+
+    if not (0 <= x_min <= x_max <= 100 and 0 <= y_min <= y_max <= 100):
+        return jsonify({"error": "座標範圍需在 0~100 且最小值不可大於最大值。"}), 400
+
+    return jsonify(
+        service.query_points(
+            resource=resource,
+            wonder=wonder,
+            x_min=x_min,
+            x_max=x_max,
+            y_min=y_min,
+            y_max=y_max,
+        )
+    )
 
 
 @app.post("/api/triangulate")

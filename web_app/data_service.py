@@ -37,12 +37,24 @@ class DataService:
     def options(self) -> Dict[str, List[str]]:
         return {"resources": self.resources, "wonders": self.wonders}
 
-    def query_points(self, resource: str = "", wonder: str = "") -> List[Dict]:
+    def query_points(
+        self,
+        resource: str = "",
+        wonder: str = "",
+        x_min: int = 0,
+        x_max: int = 100,
+        y_min: int = 0,
+        y_max: int = 100,
+    ) -> List[Dict]:
         result = []
         for (x, y), info in self.data_dict.items():
             if resource and info.resource != resource:
                 continue
             if wonder and info.wonder != wonder:
+                continue
+            if x < x_min or x > x_max:
+                continue
+            if y < y_min or y > y_max:
                 continue
             result.append(
                 {
