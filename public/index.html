@@ -8,8 +8,10 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    #chart { width: 100%; height: 78vh; }
+    #chart { width: min(92vw, 78vh); height: min(92vw, 78vh); margin: 0 auto; }
     .hint { color: #555; font-size: 14px; }
+    .status { margin: 8px 0 12px; color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 4px; padding: 8px 10px; min-height: 18px; }
+    .status.error { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
   </style>
 </head>
 <body>
@@ -21,46 +23,82 @@
     <label>神蹟
       <select id="wonder"></select>
     </label>
+    <label>新增點顏色
+      <input id="newPointColor" type="color" value="#1f77b4" />
+    </label>
+    <label>關注目標色
+      <input id="focusColor" type="color" value="#d62728" />
+    </label>
     <button id="addFiltered">新增符合條件點</button>
+    <button id="setFocusPoint">點選點設為關注目標</button>
     <button id="toggleEdges">切換邊線</button>
     <button id="toggleLabels">切換標籤</button>
     <button id="save">儲存到瀏覽器</button>
     <button id="load">讀取瀏覽器儲存</button>
     <button id="clear">清空所有點</button>
   </div>
-  <p class="hint">左鍵點圖新增點；點到既有點會刪除。座標範圍：0~100。</p>
+  <p class="hint">左鍵點圖可刪除點（或在關注模式設定關注色），右鍵可新增/刪除。座標範圍：0~100。</p>
+  <div id="status" class="status">準備就緒。</div>
   <div id="chart"></div>
 
 <script>
 let selectedPoints = [];
 let showEdges = true;
 let showLabels = true;
+let focusMode = false;
 
 function endpoint(path) { return path; }
+function getNewPointColor() { return document.getElementById('newPointColor').value; }
+function getFocusColor() { return document.getElementById('focusColor').value; }
+function setStatus(message, isError = false) {
+  const box = document.getElementById('status');
+  box.textContent = message;
+  box.classList.toggle('error', isError);
+}
+async function withStatus(message, action, doneMessage = '完成。') {
+  try {
+    setStatus(message, false);
+    const result = await action();
+    setStatus(doneMessage, false);
+    return result;
+  } catch (err) {
+    setStatus(`${message}失敗：${err.message || err}`, true);
+    throw err;
+  }
+}
+function syncFocusButtonText() {
+  document.getElementById('setFocusPoint').textContent = focusMode
+    ? '關注模式：開（點一下點可上色）'
+    : '關注模式：關';
+}
 
 function optionHTML(items) {
   return ['<option value="">(不限)</option>', ...items.map(i => `<option value="${i}">${i}</option>`)].join('');
 }
 
 async function loadOptions() {
-  const r = await fetch(endpoint('/api/options'));
-  const data = await r.json();
-  document.getElementById('resource').innerHTML = optionHTML(data.resources || []);
-  document.getElementById('wonder').innerHTML = optionHTML(data.wonders || []);
+  await withStatus('正在載入篩選選項...', async () => {
+    const r = await fetch(endpoint('/api/options'));
+    const data = await r.json();
+    document.getElementById('resource').innerHTML = optionHTML(data.resources || []);
+    document.getElementById('wonder').innerHTML = optionHTML(data.wonders || []);
+  }, '篩選選項載入完成。');
 }
 
 async function addFilteredPoints() {
   const resource = document.getElementById('resource').value;
   const wonder = document.getElementById('wonder').value;
   const qs = new URLSearchParams({ resource, wonder });
-  const r = await fetch(endpoint(`/api/points/query?${qs.toString()}`));
-  const data = await r.json();
-  const existing = new Set(selectedPoints.map(p => `${p.x},${p.y}`));
-  data.forEach(p => {
-    const key = `${p.x},${p.y}`;
-    if (!existing.has(key)) selectedPoints.push({ ...p, color: 'blue' });
-  });
-  await redraw();
+  await withStatus('正在新增符合條件點...', async () => {
+    const r = await fetch(endpoint(`/api/points/query?${qs.toString()}`));
+    const data = await r.json();
+    const existing = new Set(selectedPoints.map(p => `${p.x},${p.y}`));
+    data.forEach(p => {
+      const key = `${p.x},${p.y}`;
+      if (!existing.has(key)) selectedPoints.push({ ...p, color: getNewPointColor() });
+    });
+    await redraw();
+  }, '已新增符合條件點。');
 }
 
 async function triangulate(points) {
@@ -72,6 +110,7 @@ async function triangulate(points) {
 }
 
 async function redraw() {
+  setStatus('正在重繪圖表...');
   const tracePoints = {
     x: selectedPoints.map(p => p.x),
     y: selectedPoints.map(p => p.y),
@@ -96,37 +135,53 @@ async function redraw() {
 
   const layout = {
     xaxis: { range: [0, 100], dtick: 5 },
-    yaxis: { range: [100, 0], dtick: 5 },
+    yaxis: { range: [100, 0], dtick: 5, scaleanchor: 'x', scaleratio: 1 },
     margin: { l: 40, r: 20, b: 40, t: 20 },
     showlegend: false,
   };
 
-  Plotly.newPlot('chart', traces, layout, { responsive: true });
+  await Plotly.newPlot('chart', traces, layout, { responsive: true });
+  setStatus('圖表更新完成。');
 }
 
-function togglePoint(x, y) {
+function togglePoint(x, y, shouldApplyFocusColor = false) {
   x = Math.round(x); y = Math.round(y);
   if (x < 0 || x > 100 || y < 0 || y > 100) return;
   const idx = selectedPoints.findIndex(p => p.x === x && p.y === y);
-  if (idx >= 0) selectedPoints.splice(idx, 1);
-  else selectedPoints.push({ x, y, resource: '', wonder: '', color: 'blue' });
+  if (idx >= 0) {
+    if (shouldApplyFocusColor) selectedPoints[idx].color = getFocusColor();
+    else selectedPoints.splice(idx, 1);
+  } else {
+    selectedPoints.push({ x, y, resource: '', wonder: '', color: getNewPointColor() });
+  }
 }
 
 function bindEvents() {
   document.getElementById('addFiltered').onclick = addFilteredPoints;
+  document.getElementById('setFocusPoint').onclick = () => {
+    focusMode = !focusMode;
+    syncFocusButtonText();
+    setStatus(focusMode ? '已開啟關注模式，左鍵點既有點可改成關注色。' : '已關閉關注模式。');
+  };
   document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
   document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
-  document.getElementById('save').onclick = () => localStorage.setItem('distanceViewerPoints', JSON.stringify(selectedPoints));
-  document.getElementById('load').onclick = async () => {
+  document.getElementById('save').onclick = () => {
+    localStorage.setItem('distanceViewerPoints', JSON.stringify(selectedPoints));
+    setStatus('已儲存目前點位到瀏覽器。');
+  };
+  document.getElementById('load').onclick = async () => withStatus('正在讀取瀏覽器儲存資料...', async () => {
     selectedPoints = JSON.parse(localStorage.getItem('distanceViewerPoints') || '[]');
     await redraw();
-  };
-  document.getElementById('clear').onclick = async () => { selectedPoints = []; await redraw(); };
+  }, '已完成讀取並更新圖表。');
+  document.getElementById('clear').onclick = async () => withStatus('正在清空點位...', async () => {
+    selectedPoints = [];
+    await redraw();
+  }, '點位已清空。');
 
   document.getElementById('chart').on('plotly_click', async (eventData) => {
     const pt = eventData.points?.[0];
     if (!pt) return;
-    togglePoint(pt.x, pt.y);
+    togglePoint(pt.x, pt.y, focusMode);
     await redraw();
   });
 
@@ -143,9 +198,12 @@ function bindEvents() {
 }
 
 (async function init() {
+  syncFocusButtonText();
+  setStatus('初始化中，請稍候...');
   await loadOptions();
   await redraw();
   bindEvents();
+  setStatus('初始化完成。');
 })();
 </script>
 </body>
