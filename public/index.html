@@ -204,38 +204,33 @@
           <label class="color-item"><span class="field-label">關注目標色</span>
             <input id="focusColor" type="color" value="#d62728" />
           </label>
-          <label><span class="field-label">關注點造型</span>
-            <select id="focusStyle">
+          <label><span class="field-label">關注點樣式</span>
+            <select id="focusMarkerOption">
               <option value="circle">圓點（預設）</option>
               <option value="diamond">菱形</option>
               <option value="star">星形</option>
               <option value="cross">十字</option>
-              <option value="emoji">Emoji</option>
-            </select>
-          </label>
-          <label><span class="field-label">關注 Emoji</span>
-            <select id="focusEmoji">
-              <option value="🔥">🔥 火焰</option>
-              <option value="⭐">⭐ 星星</option>
-              <option value="🎯">🎯 目標</option>
-              <option value="👀">👀 關注</option>
-              <option value="💎">💎 寶石</option>
-              <option value="🚩">🚩 旗幟</option>
-              <option value="🏠">🏠 城鎮</option>
-              <option value="🏰">🏰 城堡</option>
-              <option value="🗼">🗼 塔樓</option>
-              <option value="⛺">⛺ 營地</option>
-              <option value="⚔️">⚔️ 戰場</option>
-              <option value="🛡️">🛡️ 防守</option>
-              <option value="⛏️">⛏️ 礦區</option>
-              <option value="🌲">🌲 森林</option>
-              <option value="🌊">🌊 水域</option>
-              <option value="⛰️">⛰️ 山區</option>
-              <option value="🧭">🧭 路線</option>
-              <option value="📍">📍 地標</option>
-              <option value="🚧">🚧 危險區</option>
-              <option value="🅿️">🅿️ 集結點</option>
-              <option value="💰">💰 資源點</option>
+              <option value="emoji:🔥">🔥 火焰</option>
+              <option value="emoji:⭐">⭐ 星星</option>
+              <option value="emoji:🎯">🎯 目標</option>
+              <option value="emoji:👀">👀 關注</option>
+              <option value="emoji:💎">💎 寶石</option>
+              <option value="emoji:🚩">🚩 旗幟</option>
+              <option value="emoji:🏠">🏠 城鎮</option>
+              <option value="emoji:🏰">🏰 城堡</option>
+              <option value="emoji:🗼">🗼 塔樓</option>
+              <option value="emoji:⛺">⛺ 營地</option>
+              <option value="emoji:⚔️">⚔️ 戰場</option>
+              <option value="emoji:🛡️">🛡️ 防守</option>
+              <option value="emoji:⛏️">⛏️ 礦區</option>
+              <option value="emoji:🌲">🌲 森林</option>
+              <option value="emoji:🌊">🌊 水域</option>
+              <option value="emoji:⛰️">⛰️ 山區</option>
+              <option value="emoji:🧭">🧭 路線</option>
+              <option value="emoji:📍">📍 地標</option>
+              <option value="emoji:🚧">🚧 危險區</option>
+              <option value="emoji:🅿️">🅿️ 集結點</option>
+              <option value="emoji:💰">💰 資源點</option>
             </select>
           </label>
           <label class="color-item"><span class="field-label">註解文字色</span>
@@ -313,8 +308,16 @@ let currentViewRange = null;
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
 function getFocusColor() { return document.getElementById('focusColor').value; }
-function getFocusStyle() { return document.getElementById('focusStyle').value || 'circle'; }
-function getFocusEmoji() { return document.getElementById('focusEmoji').value || '🔥'; }
+function getFocusMarkerOption() {
+  return document.getElementById('focusMarkerOption').value || 'circle';
+}
+function getFocusSetting() {
+  const markerOption = getFocusMarkerOption();
+  if (markerOption.startsWith('emoji:')) {
+    return { marker: 'emoji', emoji: markerOption.slice('emoji:'.length) || '🔥' };
+  }
+  return { marker: markerOption, emoji: '' };
+}
 function getEmojiFontFamily() {
   return [
     "'Apple Color Emoji'",
@@ -807,10 +810,10 @@ function togglePoint(x, y, shouldApplyFocusColor = false, shouldEditAnnotation =
     if (shouldEditAnnotation) {
       editPointAnnotation(selectedPoints[idx]);
     } else if (shouldApplyFocusColor) {
-      const focusStyle = getFocusStyle();
-      selectedPoints[idx].focusMarker = focusStyle;
-      selectedPoints[idx].focusEmoji = getFocusEmoji();
-      if (focusStyle !== 'emoji') {
+      const focusSetting = getFocusSetting();
+      selectedPoints[idx].focusMarker = focusSetting.marker;
+      selectedPoints[idx].focusEmoji = focusSetting.emoji;
+      if (focusSetting.marker !== 'emoji') {
         selectedPoints[idx].color = getFocusColor();
       }
     } else {
@@ -862,10 +865,11 @@ function bindEvents() {
         await redraw();
       });
     });
-  ['focusStyle', 'focusEmoji', 'focusColor'].forEach((id) => {
+  ['focusMarkerOption', 'focusColor'].forEach((id) => {
     document.getElementById(id).addEventListener('change', () => {
       if (!focusMode) return;
-      setStatus(`關注樣式已切換為：${getFocusStyle() === 'emoji' ? getFocusEmoji() : getFocusStyle()}。`);
+      const focusSetting = getFocusSetting();
+      setStatus(`關注樣式已切換為：${focusSetting.marker === 'emoji' ? focusSetting.emoji : focusSetting.marker}。`);
     });
   });
   document.getElementById('setFocusPoint').onclick = () => {
