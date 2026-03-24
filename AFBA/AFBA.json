@@ -1,0 +1,202 @@
+{
+  "format": "distanceViewer.save.v2",
+  "exportedAt": "2026-03-24T10:47:16.341Z",
+  "save": {
+    "id": "save_1774349232589_df2h94",
+    "name": "AFBA",
+    "createdAt": "2026-03-24T10:47:12.589Z",
+    "updatedAt": "2026-03-24T10:47:12.589Z",
+    "points": [
+      {
+        "x": 17,
+        "y": 11,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#fa0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 21,
+        "y": 51,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#fa0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 19,
+        "y": 47,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#fa0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 10,
+        "y": 71,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#fa0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 41,
+        "y": 77,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#fa0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 39,
+        "y": 80,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#fa0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 53,
+        "y": 25,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 56,
+        "y": 25,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 10,
+        "y": 74,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "cut9898",
+        "focusMarker": "emoji",
+        "focusEmoji": "⚔️"
+      },
+      {
+        "x": 47,
+        "y": 85,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 77,
+        "y": 97,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 44,
+        "y": 74,
+        "resource": "石",
+        "wonder": "哈迪斯",
+        "color": "#000000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 73,
+        "y": 15,
+        "resource": "石",
+        "wonder": "愛馬仕",
+        "color": "#ff7f00",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 45,
+        "y": 84,
+        "resource": "石",
+        "wonder": "泰坦",
+        "color": "#7f00ff",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 43,
+        "y": 80,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#7f00ff",
+        "note": "ｍｍｎ",
+        "focusMarker": "emoji",
+        "focusEmoji": "🏰"
+      },
+      {
+        "x": 98,
+        "y": 65,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "Lorenz",
+        "focusMarker": "emoji",
+        "focusEmoji": "🏠"
+      },
+      {
+        "x": 14,
+        "y": 36,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "阿華、天哥、盟主",
+        "focusMarker": "emoji",
+        "focusEmoji": "⛏️"
+      },
+      {
+        "x": 23,
+        "y": 28,
+        "resource": "石",
+        "wonder": "女神",
+        "color": "#00ff00",
+        "note": "Elisha",
+        "focusMarker": "emoji",
+        "focusEmoji": "🗼"
+      },
+      {
+        "x": 53,
+        "y": 54,
+        "resource": "石",
+        "wonder": "海豚",
+        "color": "#0000ff",
+        "note": "livefish",
+        "focusMarker": "emoji",
+        "focusEmoji": "⛺"
+      }
+    ]
+  }
+}
