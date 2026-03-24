@@ -54,3 +54,9 @@ vercel --prod
 ```
 
 Configuration is included in `vercel.json` and Python dependencies are in `requirements.txt`.
+
+
+## 新人文件
+
+- 新手快速上手請看：`docs/新人操作手冊.md`
+- 純網頁使用者請看：`docs/網頁版操作手冊.md`
