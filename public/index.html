@@ -9,7 +9,7 @@
     body { font-family: Arial, sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
     .toolbar {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
       gap: 10px;
       margin-bottom: 10px;
       align-items: start;
@@ -31,6 +31,20 @@
       display: grid;
       gap: 6px;
     }
+    .field-grid {
+      display: grid;
+      grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+      gap: 6px 8px;
+      align-items: center;
+    }
+    .field-grid label {
+      display: contents;
+    }
+    .field-label {
+      font-size: 14px;
+      color: #0f172a;
+      white-space: nowrap;
+    }
     .inline-fields {
       display: flex;
       align-items: center;
@@ -43,6 +57,18 @@
       gap: 6px;
       flex-wrap: wrap;
       font-size: 14px;
+    }
+    select,
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    input[type="color"] {
+      width: 64px;
+      min-width: 64px;
+      height: 34px;
+      padding: 2px;
     }
     .button-row {
       display: grid;
@@ -81,8 +107,8 @@
     .hint { color: #555; font-size: 14px; }
     .status { margin: 8px 0 12px; color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 4px; padding: 8px 10px; min-height: 18px; }
     .status.error { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
-    #saveName { width: 100%; max-width: 260px; }
-    #saveList { min-width: 220px; }
+    #saveName { max-width: 100%; }
+    #saveList { min-width: 0; width: 100%; }
   </style>
 </head>
 <body>
@@ -91,26 +117,28 @@
     <section class="control-group">
       <h3 class="control-title">篩選與新增</h3>
       <div class="control-grid">
-        <label>資源
-          <select id="resource"></select>
-        </label>
-        <label>神蹟
-          <select id="wonder"></select>
-        </label>
-        <label>X 範圍
-          <span class="inline-fields">
+        <div class="field-grid">
+          <label><span class="field-label">資源</span>
+            <select id="resource"></select>
+          </label>
+          <label><span class="field-label">神蹟</span>
+            <select id="wonder"></select>
+          </label>
+          <label><span class="field-label">X 範圍</span>
+            <span class="inline-fields">
             <input id="xMin" type="number" min="0" max="100" value="0" style="width:70px" />
             ~
             <input id="xMax" type="number" min="0" max="100" value="100" style="width:70px" />
-          </span>
-        </label>
-        <label>Y 範圍
-          <span class="inline-fields">
+            </span>
+          </label>
+          <label><span class="field-label">Y 範圍</span>
+            <span class="inline-fields">
             <input id="yMin" type="number" min="0" max="100" value="0" style="width:70px" />
             ~
             <input id="yMax" type="number" min="0" max="100" value="100" style="width:70px" />
-          </span>
-        </label>
+            </span>
+          </label>
+        </div>
         <div class="button-row">
           <button id="addFiltered">新增符合條件點</button>
           <button id="clear">清空所有點</button>
@@ -121,24 +149,26 @@
     <section class="control-group">
       <h3 class="control-title">視覺與標記</h3>
       <div class="control-grid">
-        <label>新增點顏色
-          <input id="newPointColor" type="color" value="#1f77b4" />
-        </label>
-        <label>關注目標色
-          <input id="focusColor" type="color" value="#d62728" />
-        </label>
-        <label>註解文字色
-          <input id="annotationTextColor" type="color" value="#7c3aed" />
-        </label>
-        <label>註解底色
-          <input id="annotationBgColor" type="color" value="#fff4d6" />
-        </label>
-        <label>註解字型
-          <input id="annotationFontFamily" type="text" value="Arial, sans-serif" />
-        </label>
-        <label>註解字級
-          <input id="annotationFontSize" type="number" min="10" max="48" value="16" style="width:90px" />
-        </label>
+        <div class="field-grid">
+          <label><span class="field-label">新增點顏色</span>
+            <input id="newPointColor" type="color" value="#1f77b4" />
+          </label>
+          <label><span class="field-label">關注目標色</span>
+            <input id="focusColor" type="color" value="#d62728" />
+          </label>
+          <label><span class="field-label">註解文字色</span>
+            <input id="annotationTextColor" type="color" value="#7c3aed" />
+          </label>
+          <label><span class="field-label">註解底色</span>
+            <input id="annotationBgColor" type="color" value="#fff4d6" />
+          </label>
+          <label><span class="field-label">註解字型</span>
+            <input id="annotationFontFamily" type="text" value="Arial, sans-serif" />
+          </label>
+          <label><span class="field-label">註解字級</span>
+            <input id="annotationFontSize" type="number" min="10" max="48" value="16" style="width:90px" />
+          </label>
+        </div>
         <div class="button-row">
           <button id="setFocusPoint">點選點設為關注目標</button>
           <button id="setAnnotationPoint">點選點編輯註解</button>
