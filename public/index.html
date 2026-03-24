@@ -190,6 +190,7 @@
         <div class="button-row">
           <button id="addFiltered">新增符合條件點</button>
           <button id="clear">清空所有點</button>
+          <button id="undo">還原上一步</button>
         </div>
       </div>
     </section>
@@ -293,6 +294,8 @@
 
 <script>
 let selectedPoints = [];
+const pointHistory = [];
+const HISTORY_LIMIT = 50;
 let showEdges = true;
 let showLabels = true;
 let showDistanceLabels = false;
@@ -399,6 +402,38 @@ function clonePoints(points) {
     focusMarker: p.focusMarker || '',
     focusEmoji: p.focusEmoji || '',
   })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+function undoLastPointChange() {
+  if (!pointHistory.length) return false;
+  selectedPoints = pointHistory.pop();
+  return true;
+}
+function pointsEqual(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((p, idx) => {
+    const q = b[idx];
+    return p.x === q.x
+      && p.y === q.y
+      && p.resource === q.resource
+      && p.wonder === q.wonder
+      && p.color === q.color
+      && p.note === q.note
+      && p.focusMarker === q.focusMarker
+      && p.focusEmoji === q.focusEmoji;
+  });
+}
+function applyPointMutation(mutator) {
+  const before = clonePoints(selectedPoints);
+  mutator();
+  const after = clonePoints(selectedPoints);
+  if (!pointsEqual(before, after)) {
+    pointHistory.push(before);
+    if (pointHistory.length > HISTORY_LIMIT) pointHistory.shift();
+    selectedPoints = after;
+    return true;
+  }
+  selectedPoints = after;
+  return false;
 }
 function readSaveStore() {
   const fallback = { saves: [] };
@@ -617,10 +652,15 @@ async function addFilteredPoints() {
       throw new Error(errData.error || `HTTP ${r.status}`);
     }
     const data = await r.json();
-    const existing = new Set(selectedPoints.map(p => `${p.x},${p.y}`));
-    data.forEach(p => {
-      const key = `${p.x},${p.y}`;
-      if (!existing.has(key)) selectedPoints.push({ ...p, color: getNewPointColor() });
+    applyPointMutation(() => {
+      const existing = new Set(selectedPoints.map((p) => `${p.x},${p.y}`));
+      data.forEach((p) => {
+        const key = `${p.x},${p.y}`;
+        if (!existing.has(key)) {
+          selectedPoints.push({ ...p, color: getNewPointColor(), note: '', focusMarker: '', focusEmoji: '' });
+          existing.add(key);
+        }
+      });
     });
     await redraw();
   }, '已新增符合條件點。');
@@ -905,7 +945,9 @@ function bindEvents() {
     overwriteSelectedVersion();
   }, '已覆寫選取版本。');
   document.getElementById('load').onclick = async () => withStatus('正在載入版本...', async () => {
-    loadSelectedVersion();
+    applyPointMutation(() => {
+      loadSelectedVersion();
+    });
     await redraw();
   }, '版本載入完成。');
   document.getElementById('renameSave').onclick = () => withStatus('正在重新命名版本...', async () => {
@@ -940,19 +982,31 @@ function bindEvents() {
     const text = await file.text();
     const payload = JSON.parse(text);
     importSavePayload(payload);
-    loadSelectedVersion();
+    applyPointMutation(() => {
+      loadSelectedVersion();
+    });
     await redraw();
     event.target.value = '';
   }, '匯入成功，已加入瀏覽器版本並載入。'));
   document.getElementById('clear').onclick = async () => withStatus('正在清空點位...', async () => {
-    selectedPoints = [];
+    applyPointMutation(() => {
+      selectedPoints = [];
+    });
     await redraw();
   }, '點位已清空。');
+  document.getElementById('undo').onclick = async () => withStatus('正在還原上一步...', async () => {
+    if (!undoLastPointChange()) {
+      throw new Error('目前沒有可還原的操作。');
+    }
+    await redraw();
+  }, '已還原上一步。');
 
   document.getElementById('chart').on('plotly_click', async (eventData) => {
     const pt = eventData.points?.[0];
     if (!pt) return;
-    togglePoint(pt.x, pt.y, focusMode, annotationMode);
+    applyPointMutation(() => {
+      togglePoint(pt.x, pt.y, focusMode, annotationMode);
+    });
     await redraw();
   });
 
@@ -973,9 +1027,21 @@ function bindEvents() {
     if (!isInsidePlot) return;
     const x = xAxis.p2d(plotX);
     const y = yAxis.p2d(plotY);
-    togglePoint(x, y);
+    applyPointMutation(() => {
+      togglePoint(x, y);
+    });
     await redraw();
   };
+  document.addEventListener('keydown', async (event) => {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
+    event.preventDefault();
+    if (!undoLastPointChange()) {
+      setStatus('目前沒有可還原的操作。', true);
+      return;
+    }
+    await redraw();
+    setStatus('已還原上一步。');
+  });
 }
 
 (async function init() {
