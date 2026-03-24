@@ -224,6 +224,7 @@
           <button id="setAnnotationPoint">點選點編輯註解</button>
           <button id="toggleEdges">切換邊線</button>
           <button id="toggleLabels">切換標籤</button>
+          <button id="toggleDistanceLabels">距離顯示：關</button>
           <button id="toggleAnnotations">切換註解顯示</button>
         </div>
       </div>
@@ -265,6 +266,7 @@
 let selectedPoints = [];
 let showEdges = true;
 let showLabels = true;
+let showDistanceLabels = false;
 let focusMode = false;
 let annotationMode = false;
 let showAnnotations = true;
@@ -481,6 +483,11 @@ function syncAnnotationVisibilityText() {
     ? '註解顯示：開'
     : '註解顯示：關';
 }
+function syncDistanceVisibilityText() {
+  document.getElementById('toggleDistanceLabels').textContent = showDistanceLabels
+    ? '距離顯示：開'
+    : '距離顯示：關';
+}
 function syncViewControlText() {
   document.getElementById('toggleToolbar').textContent = toolbarVisible
     ? '隱藏工具列'
@@ -492,6 +499,18 @@ function syncViewControlText() {
 
 function optionHTML(items) {
   return ['<option value="">(不限)</option>', ...items.map(i => `<option value="${i}">${i}</option>`)].join('');
+}
+
+function pickDistanceLabelEdges(edges) {
+  const usedVertices = new Set();
+  return edges.filter((edge) => {
+    const v1 = `${edge.x1},${edge.y1}`;
+    const v2 = `${edge.x2},${edge.y2}`;
+    if (usedVertices.has(v1) || usedVertices.has(v2)) return false;
+    usedVertices.add(v1);
+    usedVertices.add(v2);
+    return true;
+  });
 }
 
 async function loadOptions() {
@@ -575,6 +594,21 @@ async function redraw() {
         line: { color: '#333', width: 1 }, hovertemplate: `距離: ${e.distance}<extra></extra>`
       });
     });
+    if (showDistanceLabels) {
+      const labelEdges = pickDistanceLabelEdges(edges);
+      if (labelEdges.length) {
+        traces.push({
+          x: labelEdges.map((e) => (e.x1 + e.x2) / 2),
+          y: labelEdges.map((e) => (e.y1 + e.y2) / 2),
+          mode: 'text',
+          type: 'scatter',
+          text: labelEdges.map((e) => String(e.distance)),
+          textposition: 'middle center',
+          textfont: { size: 12, color: '#0f172a' },
+          hoverinfo: 'skip',
+        });
+      }
+    }
   }
 
   const layout = {
@@ -733,6 +767,11 @@ function bindEvents() {
   };
   document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
   document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
+  document.getElementById('toggleDistanceLabels').onclick = async () => {
+    showDistanceLabels = !showDistanceLabels;
+    syncDistanceVisibilityText();
+    await redraw();
+  };
   document.getElementById('toggleAnnotations').onclick = async () => {
     showAnnotations = !showAnnotations;
     syncAnnotationVisibilityText();
@@ -822,6 +861,7 @@ function bindEvents() {
   syncFocusButtonText();
   syncAnnotationButtonText();
   syncAnnotationVisibilityText();
+  syncDistanceVisibilityText();
   syncViewControlText();
   setStatus('初始化中，請稍候...');
   refreshSaveList();
