@@ -6,7 +6,7 @@
   <title>DistanceViewer Web</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
+    body { font-family: Arial, 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
     .toolbar {
       display: grid;
       grid-template-columns: minmax(320px, 1.15fr) minmax(360px, 1.35fr) minmax(300px, 0.95fr);
@@ -315,6 +315,16 @@ function getNewPointColor() { return document.getElementById('newPointColor').va
 function getFocusColor() { return document.getElementById('focusColor').value; }
 function getFocusStyle() { return document.getElementById('focusStyle').value || 'circle'; }
 function getFocusEmoji() { return document.getElementById('focusEmoji').value || '🔥'; }
+function getEmojiFontFamily() {
+  return [
+    "'Apple Color Emoji'",
+    "'Segoe UI Emoji'",
+    "'Noto Color Emoji'",
+    "'Twemoji Mozilla'",
+    "'EmojiOne Color'",
+    "sans-serif",
+  ].join(', ');
+}
 function getAnnotationTextColor() { return document.getElementById('annotationTextColor').value; }
 function getAnnotationBgColor() { return document.getElementById('annotationBgColor').value; }
 function getAnnotationFontFamily() {
@@ -695,8 +705,12 @@ async function redraw() {
       type: 'scatter',
       text: emojiFocusPoints.map((p) => p.focusEmoji || '🔥'),
       textposition: 'middle center',
-      textfont: { size: 18 },
+      textfont: {
+        size: 20,
+        family: getEmojiFontFamily(),
+      },
       hovertemplate: emojiFocusPoints.map((p) => `(${p.x}, ${p.y})<extra></extra>`),
+      hoverlabel: { font: { family: getEmojiFontFamily() } },
       cliponaxis: false,
     });
   }
