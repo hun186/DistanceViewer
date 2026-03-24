@@ -634,12 +634,21 @@ function bindEvents() {
 
   document.getElementById('chart').oncontextmenu = async (e) => {
     e.preventDefault();
-    const { xMin, xMax, yMin, yMax } = getConfiguredRange();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xRatio = (e.clientX - rect.left) / rect.width;
-    const yRatio = (e.clientY - rect.top) / rect.height;
-    const x = xMin + xRatio * (xMax - xMin);
-    const y = yMax - yRatio * (yMax - yMin);
+    const chart = document.getElementById('chart');
+    const fullLayout = chart._fullLayout;
+    const xAxis = fullLayout?.xaxis;
+    const yAxis = fullLayout?.yaxis;
+    if (!xAxis || !yAxis) return;
+    const rect = chart.getBoundingClientRect();
+    const plotX = e.clientX - rect.left - xAxis._offset;
+    const plotY = e.clientY - rect.top - yAxis._offset;
+    const isInsidePlot = (
+      plotX >= 0 && plotX <= xAxis._length
+      && plotY >= 0 && plotY <= yAxis._length
+    );
+    if (!isInsidePlot) return;
+    const x = xAxis.p2d(plotX);
+    const y = yAxis.p2d(plotY);
     togglePoint(x, y);
     await redraw();
   };
