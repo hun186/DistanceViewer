@@ -415,10 +415,11 @@ class InteractivePlot:
                     len(data['points']) == len(data['colors'])):
                     self.points = data['points']
                     self.colors = data['colors']
-                    self.full_view = False
-                    self.point_view_limits = self.calculate_point_view_limits()
+                    # 載入後先自動切到全景，讓使用者先掌握整體分佈
+                    self.full_view = True
+                    self.point_view_limits = None
                     self.redraw()
-                    self.log_action(f"已從 {self.save_file} 載入資料（已自動縮放一次）")
+                    self.log_action(f"已從 {self.save_file} 載入資料（已自動切換全景）")
                 else:
                     print(f"檔案格式錯誤: {self.save_file}" if use_chinese else f"File format error: {self.save_file}")
             except json.JSONDecodeError:
