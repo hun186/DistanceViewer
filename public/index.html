@@ -9,9 +9,9 @@
     body { font-family: Arial, sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
     .toolbar {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 12px;
-      margin-bottom: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
       align-items: start;
     }
     .toolbar.hidden { display: none; }
@@ -19,7 +19,7 @@
       background: #ffffff;
       border: 1px solid #d8e0ea;
       border-radius: 10px;
-      padding: 12px;
+      padding: 10px;
       box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
     }
     .control-title {
@@ -29,7 +29,7 @@
     }
     .control-grid {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
     .inline-fields {
       display: flex;
@@ -45,16 +45,17 @@
       font-size: 14px;
     }
     .button-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 6px;
     }
     button {
       border: 1px solid #c5d3e3;
       background: #f8fbff;
       color: #0b3a66;
       border-radius: 6px;
-      padding: 6px 10px;
+      padding: 6px 8px;
+      width: 100%;
       cursor: pointer;
     }
     button:hover {
