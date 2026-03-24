@@ -194,6 +194,7 @@
           <button id="addSinglePoint">新增單點</button>
           <button id="clear">清空所有點</button>
           <button id="undo">還原上一步</button>
+          <button id="redo">取消還原上一步</button>
         </div>
       </div>
     </section>
@@ -298,6 +299,7 @@
 <script>
 let selectedPoints = [];
 const pointHistory = [];
+const redoHistory = [];
 const HISTORY_LIMIT = 50;
 let showEdges = true;
 let showLabels = true;
@@ -408,7 +410,16 @@ function clonePoints(points) {
 }
 function undoLastPointChange() {
   if (!pointHistory.length) return false;
+  redoHistory.push(clonePoints(selectedPoints));
+  if (redoHistory.length > HISTORY_LIMIT) redoHistory.shift();
   selectedPoints = pointHistory.pop();
+  return true;
+}
+function redoLastPointChange() {
+  if (!redoHistory.length) return false;
+  pointHistory.push(clonePoints(selectedPoints));
+  if (pointHistory.length > HISTORY_LIMIT) pointHistory.shift();
+  selectedPoints = redoHistory.pop();
   return true;
 }
 function pointsEqual(a, b) {
@@ -432,6 +443,7 @@ function applyPointMutation(mutator) {
   if (!pointsEqual(before, after)) {
     pointHistory.push(before);
     if (pointHistory.length > HISTORY_LIMIT) pointHistory.shift();
+    redoHistory.length = 0;
     selectedPoints = after;
     return true;
   }
@@ -1062,6 +1074,12 @@ function bindEvents() {
     }
     await redraw();
   }, '已還原上一步。');
+  document.getElementById('redo').onclick = async () => withStatus('正在取消還原上一步...', async () => {
+    if (!redoLastPointChange()) {
+      throw new Error('目前沒有可取消還原的操作。');
+    }
+    await redraw();
+  }, '已取消還原上一步。');
 
   document.getElementById('chart').on('plotly_click', async (eventData) => {
     const pt = eventData.points?.[0];
@@ -1095,14 +1113,27 @@ function bindEvents() {
     await redraw();
   };
   document.addEventListener('keydown', async (event) => {
-    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return;
-    event.preventDefault();
-    if (!undoLastPointChange()) {
-      setStatus('目前沒有可還原的操作。', true);
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      if (!undoLastPointChange()) {
+        setStatus('目前沒有可還原的操作。', true);
+        return;
+      }
+      await redraw();
+      setStatus('已還原上一步。');
       return;
     }
-    await redraw();
-    setStatus('已還原上一步。');
+    if (key === 'y' || (key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      if (!redoLastPointChange()) {
+        setStatus('目前沒有可取消還原的操作。', true);
+        return;
+      }
+      await redraw();
+      setStatus('已取消還原上一步。');
+    }
   });
 }
 
