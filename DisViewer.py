@@ -58,6 +58,10 @@ class InteractivePlot:
         self.full_view = True  # 是否显示全图
         self.show_edges = True  # 是否显示边
         self.show_labels = True  # 是否显示标签
+        self.point_view_limits = None  # 點範圍模式下固定的顯示範圍
+        self.label_font_name_value = plt.rcParams.get('font.sans-serif', ['DejaVu Sans'])[0]
+        self.label_font_size = 12
+        self.label_text_color = 'yellow'
 
         # 增加文本框，移到畫面右側
         self.text_box_label_ax = self.fig.add_axes([0.75, 0.7, 0.2, 0.04])
@@ -100,6 +104,27 @@ class InteractivePlot:
         self.toggle_labels_ax = self.fig.add_axes([0.88, 0.33, 0.065, 0.05])
         self.toggle_labels_button = Button(self.toggle_labels_ax, '說明' if use_chinese else 'Labels')
         self.toggle_labels_button.on_clicked(self.toggle_labels)
+
+        # 註解樣式設定
+        self.label_font_name_ax = self.fig.add_axes([0.75, 0.28, 0.2, 0.04])
+        self.label_font_name_box = TextBox(
+            self.label_font_name_ax,
+            '字型:' if use_chinese else 'Font:',
+            initial=self.label_font_name_value
+        )
+        self.label_font_name_box.on_submit(self.update_label_font_name)
+
+        self.label_font_size_ax = self.fig.add_axes([0.75, 0.23, 0.2, 0.04])
+        self.label_font_size_box = TextBox(
+            self.label_font_size_ax,
+            '字級:' if use_chinese else 'Size:',
+            initial=str(self.label_font_size)
+        )
+        self.label_font_size_box.on_submit(self.update_label_font_size)
+
+        self.label_color_ax = self.fig.add_axes([0.75, 0.12, 0.2, 0.1])
+        self.label_color_buttons = RadioButtons(self.label_color_ax, ('yellow', 'white', 'black', 'red', 'cyan'))
+        self.label_color_buttons.on_clicked(self.update_label_color)
 
         # 資源和神蹟對話框
         self.resource_ax = self.fig.add_axes([0.04, 0.85, 0.07, 0.05])
@@ -223,6 +248,8 @@ class InteractivePlot:
     def toggle_view(self, event):
         """切換顯示範圍"""
         self.full_view = not self.full_view
+        if not self.full_view:
+            self.point_view_limits = self.calculate_point_view_limits()
         self.redraw()
         self.log_action("切換顯示範圍")
 
@@ -244,9 +271,18 @@ class InteractivePlot:
             self.ax.set_xlim(xliml, xlimr)
             self.ax.set_ylim(ylimr, yliml)  # 保持y軸反轉
         else:
-            xs, ys = zip(*self.points)
-            self.ax.set_xlim(min(xs) - 5, max(xs) + 5)
-            self.ax.set_ylim(max(ys) + 5, min(ys) - 5)  # 保持y軸反轉
+            if self.point_view_limits is None:
+                self.point_view_limits = self.calculate_point_view_limits()
+            x_min, x_max, y_max, y_min = self.point_view_limits
+            self.ax.set_xlim(x_min, x_max)
+            self.ax.set_ylim(y_max, y_min)  # 保持y軸反轉
+
+    def calculate_point_view_limits(self):
+        """計算點範圍模式下的顯示邊界"""
+        if not self.points:
+            return (xliml, xlimr, ylimr, yliml)
+        xs, ys = zip(*self.points)
+        return (min(xs) - 5, max(xs) + 5, max(ys) + 5, min(ys) - 5)
 
     def add_point(self, x, y):
         """根据坐标从字典中获取数据并在图中显示"""
@@ -379,8 +415,10 @@ class InteractivePlot:
                     len(data['points']) == len(data['colors'])):
                     self.points = data['points']
                     self.colors = data['colors']
+                    self.full_view = False
+                    self.point_view_limits = self.calculate_point_view_limits()
                     self.redraw()
-                    self.log_action(f"已從 {self.save_file} 载入資料")
+                    self.log_action(f"已從 {self.save_file} 載入資料（已自動縮放一次）")
                 else:
                     print(f"檔案格式錯誤: {self.save_file}" if use_chinese else f"File format error: {self.save_file}")
             except json.JSONDecodeError:
@@ -410,7 +448,16 @@ class InteractivePlot:
             wonder = data_dict.get(coord, {}).get('神蹟', '')
             self.ax.scatter(x, y, color=color, zorder=3)  # 确保点位于上层
             if show_labels:
-                self.ax.text(x + 1, y - 1, f'({x}, {y})\n{resource}\n{wonder}', fontsize=10, color=color, zorder=4)
+                self.ax.text(
+                    x + 1, y - 1,
+                    f'({x}, {y})\n{resource}\n{wonder}',
+                    fontsize=self.label_font_size,
+                    color=self.label_text_color,
+                    fontname=self.label_font_name_value,
+                    fontweight='bold',
+                    zorder=6,
+                    bbox=dict(facecolor='black', edgecolor='white', alpha=0.8, boxstyle='round,pad=0.25')
+                )
 
         # 使用 Delaunay 三角化来创建网格，如果 show_edges 为 True
         if len(self.points) >= 3 and self.show_edges:
@@ -453,6 +500,33 @@ class InteractivePlot:
 
     def distance(self, point1, point2):
         return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
+
+    def update_label_font_name(self, text):
+        """更新標籤字型"""
+        font_candidate = text.strip()
+        if font_candidate:
+            self.label_font_name_value = font_candidate
+            self.log_action(f"標籤字型: {font_candidate}")
+            self.redraw()
+
+    def update_label_font_size(self, text):
+        """更新標籤字級"""
+        try:
+            size = int(text.strip())
+            if size < 6 or size > 36:
+                raise ValueError
+            self.label_font_size = size
+            self.log_action(f"標籤字級: {size}")
+            self.redraw()
+        except ValueError:
+            print("字級需為 6~36 的整數" if use_chinese else "Font size must be an integer between 6 and 36")
+            self.label_font_size_box.set_val(str(self.label_font_size))
+
+    def update_label_color(self, color):
+        """更新標籤文字顏色"""
+        self.label_text_color = color
+        self.log_action(f"標籤文字顏色: {color}")
+        self.redraw()
 
 if __name__ == "__main__":
     plot = InteractivePlot()
