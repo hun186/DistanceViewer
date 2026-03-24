@@ -29,6 +29,8 @@
     .hint { color: #555; font-size: 14px; }
     .status { margin: 8px 0 12px; color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 4px; padding: 8px 10px; min-height: 18px; }
     .status.error { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
+    #saveName { width: 170px; }
+    #saveList { min-width: 220px; }
   </style>
 </head>
 <body>
@@ -60,8 +62,16 @@
     <button id="setFocusPoint">點選點設為關注目標</button>
     <button id="toggleEdges">切換邊線</button>
     <button id="toggleLabels">切換標籤</button>
-    <button id="save">儲存到瀏覽器</button>
-    <button id="load">讀取瀏覽器儲存</button>
+    <input id="saveName" type="text" placeholder="存檔名稱（例：主城圈）" />
+    <button id="saveAs">另存新版本</button>
+    <button id="save">覆寫目前版本</button>
+    <select id="saveList"></select>
+    <button id="load">載入選取版本</button>
+    <button id="renameSave">重新命名</button>
+    <button id="deleteSave">刪除版本</button>
+    <button id="exportSave">匯出到本機</button>
+    <button id="importSave">匯入檔案到瀏覽器</button>
+    <input id="importFile" type="file" accept="application/json" style="display:none" />
     <button id="clear">清空所有點</button>
   </div>
   <div class="view-controls">
@@ -81,6 +91,8 @@ let showLabels = true;
 let focusMode = false;
 let toolbarVisible = true;
 let chartInitialized = false;
+const STORAGE_KEY = 'distanceViewerSavesV2';
+let activeSaveId = '';
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -106,6 +118,151 @@ function setStatus(message, isError = false) {
   const box = document.getElementById('status');
   box.textContent = message;
   box.classList.toggle('error', isError);
+}
+function formatTimeLabel(isoText) {
+  if (!isoText) return '未知時間';
+  const date = new Date(isoText);
+  if (Number.isNaN(date.getTime())) return '未知時間';
+  return date.toLocaleString('zh-Hant-TW', { hour12: false });
+}
+function clonePoints(points) {
+  return (points || []).map((p) => ({
+    x: Number(p.x),
+    y: Number(p.y),
+    resource: p.resource || '',
+    wonder: p.wonder || '',
+    color: p.color || getNewPointColor(),
+  })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+function readSaveStore() {
+  const fallback = { saves: [] };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.saves)) return fallback;
+    return { saves: parsed.saves };
+  } catch {
+    return fallback;
+  }
+}
+function writeSaveStore(store) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ saves: store.saves || [] }));
+}
+function getSelectedSaveId() {
+  return document.getElementById('saveList').value || '';
+}
+function getSaveNameInput() {
+  return (document.getElementById('saveName').value || '').trim();
+}
+function refreshSaveList(preferredId = activeSaveId) {
+  const select = document.getElementById('saveList');
+  const store = readSaveStore();
+  const saves = [...store.saves].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  if (!saves.length) {
+    select.innerHTML = '<option value="">（尚無存檔）</option>';
+    select.value = '';
+    activeSaveId = '';
+    return;
+  }
+  select.innerHTML = saves.map((save) => (
+    `<option value="${save.id}">${save.name || '未命名'}｜${formatTimeLabel(save.updatedAt)}</option>`
+  )).join('');
+  const exists = saves.some((save) => save.id === preferredId);
+  select.value = exists ? preferredId : saves[0].id;
+  activeSaveId = select.value;
+}
+function saveCurrentAsNewVersion(name) {
+  const trimmedName = (name || '').trim();
+  if (!trimmedName) throw new Error('請先輸入存檔名稱。');
+  const now = new Date().toISOString();
+  const store = readSaveStore();
+  const item = {
+    id: `save_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name: trimmedName,
+    createdAt: now,
+    updatedAt: now,
+    points: clonePoints(selectedPoints),
+  };
+  store.saves.push(item);
+  writeSaveStore(store);
+  activeSaveId = item.id;
+  refreshSaveList(item.id);
+}
+function overwriteSelectedVersion() {
+  const saveId = getSelectedSaveId();
+  if (!saveId) throw new Error('請先選擇要覆寫的版本。');
+  const store = readSaveStore();
+  const target = store.saves.find((save) => save.id === saveId);
+  if (!target) throw new Error('找不到指定版本。');
+  target.points = clonePoints(selectedPoints);
+  target.updatedAt = new Date().toISOString();
+  const renamed = getSaveNameInput();
+  if (renamed) target.name = renamed;
+  writeSaveStore(store);
+  refreshSaveList(saveId);
+}
+function loadSelectedVersion() {
+  const saveId = getSelectedSaveId();
+  if (!saveId) throw new Error('目前沒有可載入的版本。');
+  const store = readSaveStore();
+  const target = store.saves.find((save) => save.id === saveId);
+  if (!target) throw new Error('找不到指定版本。');
+  selectedPoints = clonePoints(target.points);
+  activeSaveId = saveId;
+  document.getElementById('saveName').value = target.name || '';
+}
+function renameSelectedVersion(newName) {
+  const saveId = getSelectedSaveId();
+  const trimmedName = (newName || '').trim();
+  if (!saveId) throw new Error('請先選擇版本。');
+  if (!trimmedName) throw new Error('請輸入新名稱。');
+  const store = readSaveStore();
+  const target = store.saves.find((save) => save.id === saveId);
+  if (!target) throw new Error('找不到指定版本。');
+  target.name = trimmedName;
+  target.updatedAt = new Date().toISOString();
+  writeSaveStore(store);
+  refreshSaveList(saveId);
+}
+function deleteSelectedVersion() {
+  const saveId = getSelectedSaveId();
+  if (!saveId) throw new Error('請先選擇要刪除的版本。');
+  const store = readSaveStore();
+  const nextSaves = store.saves.filter((save) => save.id !== saveId);
+  if (nextSaves.length === store.saves.length) throw new Error('找不到指定版本。');
+  writeSaveStore({ saves: nextSaves });
+  refreshSaveList(nextSaves[0]?.id || '');
+}
+function buildExportPayload() {
+  const saveId = getSelectedSaveId();
+  const store = readSaveStore();
+  const target = store.saves.find((save) => save.id === saveId);
+  if (!target) throw new Error('請先選擇要匯出的版本。');
+  return {
+    format: 'distanceViewer.save.v2',
+    exportedAt: new Date().toISOString(),
+    save: {
+      ...target,
+      points: clonePoints(target.points),
+    },
+  };
+}
+function importSavePayload(payload) {
+  if (!payload || typeof payload !== 'object') throw new Error('檔案內容格式錯誤。');
+  const save = payload.save;
+  if (!save || typeof save !== 'object') throw new Error('檔案缺少 save 區塊。');
+  const store = readSaveStore();
+  const imported = {
+    id: `save_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name: `${save.name || '匯入版本'}（匯入）`,
+    createdAt: save.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    points: clonePoints(save.points),
+  };
+  store.saves.push(imported);
+  writeSaveStore(store);
+  activeSaveId = imported.id;
+  refreshSaveList(imported.id);
+  document.getElementById('saveName').value = imported.name;
 }
 async function withStatus(message, action, doneMessage = '完成。') {
   try {
@@ -277,14 +434,52 @@ function bindEvents() {
   };
   document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
   document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
-  document.getElementById('save').onclick = () => {
-    localStorage.setItem('distanceViewerPoints', JSON.stringify(selectedPoints));
-    setStatus('已儲存目前點位到瀏覽器。');
-  };
-  document.getElementById('load').onclick = async () => withStatus('正在讀取瀏覽器儲存資料...', async () => {
-    selectedPoints = JSON.parse(localStorage.getItem('distanceViewerPoints') || '[]');
+  document.getElementById('saveAs').onclick = () => withStatus('正在建立新版本...', async () => {
+    saveCurrentAsNewVersion(getSaveNameInput());
+  }, '已建立新版本。');
+  document.getElementById('save').onclick = () => withStatus('正在覆寫版本...', async () => {
+    overwriteSelectedVersion();
+  }, '已覆寫選取版本。');
+  document.getElementById('load').onclick = async () => withStatus('正在載入版本...', async () => {
+    loadSelectedVersion();
     await redraw();
-  }, '已完成讀取並更新圖表。');
+  }, '版本載入完成。');
+  document.getElementById('renameSave').onclick = () => withStatus('正在重新命名版本...', async () => {
+    renameSelectedVersion(getSaveNameInput());
+  }, '版本名稱已更新。');
+  document.getElementById('deleteSave').onclick = () => withStatus('正在刪除版本...', async () => {
+    deleteSelectedVersion();
+  }, '版本已刪除。');
+  document.getElementById('saveList').addEventListener('change', () => {
+    activeSaveId = getSelectedSaveId();
+    const store = readSaveStore();
+    const target = store.saves.find((save) => save.id === activeSaveId);
+    document.getElementById('saveName').value = target?.name || '';
+  });
+  document.getElementById('exportSave').onclick = () => withStatus('正在匯出版本檔案...', async () => {
+    const payload = buildExportPayload();
+    const safeName = (payload.save.name || 'distanceViewer-save').replace(/[^\w\u4e00-\u9fa5-]+/g, '_');
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, '版本已匯出到本機。');
+  document.getElementById('importSave').onclick = () => {
+    document.getElementById('importFile').click();
+  };
+  document.getElementById('importFile').addEventListener('change', (event) => withStatus('正在匯入版本檔案...', async () => {
+    const file = event.target.files?.[0];
+    if (!file) throw new Error('尚未選擇檔案。');
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    importSavePayload(payload);
+    loadSelectedVersion();
+    await redraw();
+    event.target.value = '';
+  }, '匯入成功，已加入瀏覽器版本並載入。'));
   document.getElementById('clear').onclick = async () => withStatus('正在清空點位...', async () => {
     selectedPoints = [];
     await redraw();
@@ -314,6 +509,7 @@ function bindEvents() {
   syncFocusButtonText();
   syncViewControlText();
   setStatus('初始化中，請稍候...');
+  refreshSaveList();
   await loadOptions();
   await redraw();
   bindEvents();
