@@ -8,8 +8,8 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
     .toolbar {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+      display: flex;
+      flex-wrap: wrap;
       gap: 10px;
       margin-bottom: 10px;
       align-items: start;
@@ -21,6 +21,20 @@
       border-radius: 10px;
       padding: 10px;
       box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+      flex: 1 1 auto;
+      min-width: 320px;
+    }
+    .group-filter {
+      flex-basis: 370px;
+      max-width: 620px;
+    }
+    .group-visual {
+      flex-basis: 420px;
+      max-width: 700px;
+    }
+    .group-version {
+      flex: 0 1 430px;
+      min-width: 360px;
     }
     .control-title {
       margin: 0 0 10px;
@@ -70,6 +84,28 @@
       height: 34px;
       padding: 2px;
     }
+    .range-input {
+      width: 74px !important;
+    }
+    .font-size-input {
+      width: 96px !important;
+    }
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(170px, 1fr));
+      gap: 6px 12px;
+    }
+    .color-item {
+      display: grid;
+      grid-template-columns: auto 72px;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .color-item .field-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .button-row {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -109,12 +145,23 @@
     .status.error { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
     #saveName { max-width: 100%; }
     #saveList { min-width: 0; width: 100%; }
+    @media (max-width: 1180px) {
+      .group-version {
+        flex: 1 1 420px;
+        max-width: none;
+      }
+    }
+    @media (max-width: 760px) {
+      .color-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
   <h2>DistanceViewer（Web 版）</h2>
   <div class="toolbar">
-    <section class="control-group">
+    <section class="control-group group-filter">
       <h3 class="control-title">篩選與新增</h3>
       <div class="control-grid">
         <div class="field-grid">
@@ -126,16 +173,16 @@
           </label>
           <label><span class="field-label">X 範圍</span>
             <span class="inline-fields">
-            <input id="xMin" type="number" min="0" max="100" value="0" style="width:70px" />
+            <input id="xMin" class="range-input" type="number" min="0" max="100" value="0" />
             ~
-            <input id="xMax" type="number" min="0" max="100" value="100" style="width:70px" />
+            <input id="xMax" class="range-input" type="number" min="0" max="100" value="100" />
             </span>
           </label>
           <label><span class="field-label">Y 範圍</span>
             <span class="inline-fields">
-            <input id="yMin" type="number" min="0" max="100" value="0" style="width:70px" />
+            <input id="yMin" class="range-input" type="number" min="0" max="100" value="0" />
             ~
-            <input id="yMax" type="number" min="0" max="100" value="100" style="width:70px" />
+            <input id="yMax" class="range-input" type="number" min="0" max="100" value="100" />
             </span>
           </label>
         </div>
@@ -146,27 +193,29 @@
       </div>
     </section>
 
-    <section class="control-group">
+    <section class="control-group group-visual">
       <h3 class="control-title">視覺與標記</h3>
       <div class="control-grid">
-        <div class="field-grid">
-          <label><span class="field-label">新增點顏色</span>
+        <div class="color-grid">
+          <label class="color-item"><span class="field-label">新增點顏色</span>
             <input id="newPointColor" type="color" value="#1f77b4" />
           </label>
-          <label><span class="field-label">關注目標色</span>
+          <label class="color-item"><span class="field-label">關注目標色</span>
             <input id="focusColor" type="color" value="#d62728" />
           </label>
-          <label><span class="field-label">註解文字色</span>
+          <label class="color-item"><span class="field-label">註解文字色</span>
             <input id="annotationTextColor" type="color" value="#7c3aed" />
           </label>
-          <label><span class="field-label">註解底色</span>
+          <label class="color-item"><span class="field-label">註解底色</span>
             <input id="annotationBgColor" type="color" value="#fff4d6" />
           </label>
+        </div>
+        <div class="field-grid">
           <label><span class="field-label">註解字型</span>
             <input id="annotationFontFamily" type="text" value="Arial, sans-serif" />
           </label>
           <label><span class="field-label">註解字級</span>
-            <input id="annotationFontSize" type="number" min="10" max="48" value="16" style="width:90px" />
+            <input id="annotationFontSize" class="font-size-input" type="number" min="10" max="48" value="16" />
           </label>
         </div>
         <div class="button-row">
@@ -179,7 +228,7 @@
       </div>
     </section>
 
-    <section class="control-group">
+    <section class="control-group group-version">
       <h3 class="control-title">版本管理</h3>
       <div class="control-grid">
         <input id="saveName" type="text" placeholder="存檔名稱（例：主城圈）" />
