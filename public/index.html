@@ -312,6 +312,7 @@ let chartInitialized = false;
 const STORAGE_KEY = 'distanceViewerSavesV2';
 let activeSaveId = '';
 let currentViewRange = null;
+const EXPORT_IMAGE_SCALE = 3;
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -349,6 +350,37 @@ function getAnnotationFontSize() {
 function toCoordNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
+}
+function getPlotlyConfig() {
+  return {
+    responsive: true,
+    toImageButtonOptions: {
+      format: 'png',
+      scale: EXPORT_IMAGE_SCALE,
+      filename: 'distance-viewer',
+    },
+  };
+}
+function buildAutoScaleRange(points, fallbackRange = null) {
+  if (!Array.isArray(points) || points.length === 0) return fallbackRange;
+  const xs = points.map((point) => Number(point.x)).filter(Number.isFinite);
+  const ys = points.map((point) => Number(point.y)).filter(Number.isFinite);
+  if (!xs.length || !ys.length) return fallbackRange;
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const padding = Math.max(3, Math.ceil(Math.max(spanX, spanY) * 0.15));
+  const nextRange = {
+    xMin: Math.max(0, Math.round(minX - padding)),
+    xMax: Math.min(100, Math.round(maxX + padding)),
+    yMin: Math.max(0, Math.round(minY - padding)),
+    yMax: Math.min(100, Math.round(maxY + padding)),
+  };
+  if (nextRange.xMin >= nextRange.xMax || nextRange.yMin >= nextRange.yMax) return fallbackRange;
+  return nextRange;
 }
 function captureViewRangeFromChart() {
   if (!chartInitialized) return null;
@@ -868,9 +900,9 @@ async function redraw() {
   };
 
   if (chartInitialized) {
-    await Plotly.react('chart', traces, layout, { responsive: true });
+    await Plotly.react('chart', traces, layout, getPlotlyConfig());
   } else {
-    await Plotly.newPlot('chart', traces, layout, { responsive: true });
+    await Plotly.newPlot('chart', traces, layout, getPlotlyConfig());
     chartInitialized = true;
     document.getElementById('chart').on('plotly_relayout', (evt) => {
       const next = { ...currentViewRange };
@@ -976,9 +1008,17 @@ function bindEvents() {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await mapPane.requestFullscreen();
   };
-  document.addEventListener('fullscreenchange', () => {
+  document.addEventListener('fullscreenchange', async () => {
     syncViewControlText();
     Plotly.Plots.resize(document.getElementById('chart'));
+    if (document.fullscreenElement === mapPane) {
+      const fittedRange = buildAutoScaleRange(selectedPoints, currentViewRange);
+      if (fittedRange) {
+        currentViewRange = fittedRange;
+        await redraw();
+        setStatus('已進入全螢幕，並自動縮放到目前點位範圍。');
+      }
+    }
   });
 
   document.getElementById('addFiltered').onclick = addFilteredPoints;
