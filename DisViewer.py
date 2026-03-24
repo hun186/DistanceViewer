@@ -46,6 +46,7 @@ class InteractivePlot:
         self.points = []  # 初始化为空的点列表
         self.colors = []  # 对应点的颜色
         self.history = []  # 用于记录历史状态的栈
+        self.redo_history = []  # 用於記錄被撤銷後可恢復的狀態
         self.selected_point_index = None
         self.cursor_text = self.ax.text(0, 0, '', fontsize=12, color='green', zorder=6)  # 游標位置顯示文本
         self.press = None  # 用于记录鼠标拖动的起始点
@@ -162,6 +163,8 @@ class InteractivePlot:
                 "- 邊: 切換是否顯示邊\n"
                 "- 說明: 切換是否顯示說明文字\n"
                 "- 新增選取點: 新增符合條件的點\n"
+                "- Ctrl+Z: 還原上一步\n"
+                "- Ctrl+Y: 取消還原上一步\n"
             )
         else:
             instructions_text = (
@@ -177,6 +180,8 @@ class InteractivePlot:
                 "- Edges: Toggle edge visibility\n"
                 "- Labels: Toggle label visibility\n"
                 "- Add Points: Add points matching criteria\n"
+                "- Ctrl+Z: Undo\n"
+                "- Ctrl+Y: Redo\n"
             )
         self.instructions_ax.text(0, 1, instructions_text, ha="left", va="top", fontsize=10)
 
@@ -369,6 +374,8 @@ class InteractivePlot:
     def on_key_press(self, event):
         if event.key == 'ctrl+z':
             self.undo()
+        elif event.key in ('ctrl+y', 'ctrl+shift+z'):
+            self.redo()
 
     def submit(self, text):
         try:
@@ -387,13 +394,23 @@ class InteractivePlot:
     def save_history(self):
         """保存当前状态到历史记录"""
         self.history.append((self.points.copy(), self.colors.copy()))  # 保存points和colors的当前状态
+        self.redo_history.clear()  # 新動作產生後，清除可重做紀錄
 
     def undo(self):
         """撤销上一步操作"""
         if self.history:
+            self.redo_history.append((self.points.copy(), self.colors.copy()))
             self.points, self.colors = self.history.pop()  # 恢复上一步状态
             self.redraw()
             self.log_action("撤銷上一步")
+
+    def redo(self):
+        """取消撤銷上一步操作"""
+        if self.redo_history:
+            self.history.append((self.points.copy(), self.colors.copy()))
+            self.points, self.colors = self.redo_history.pop()
+            self.redraw()
+            self.log_action("取消還原上一步")
 
     def save_points(self, event=None):
         """保存当前点到文件"""
