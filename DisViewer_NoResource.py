@@ -313,6 +313,9 @@ class InteractivePlot:
             # 在每個點的旁邊顯示其座標值
             self.ax.text(point[0] + 1, point[1] - 1, f'({point[0]}, {point[1]})', fontsize=10, color=color, zorder=4)
     
+        self._drawn_edges = set()
+        self._distance_label_positions = []
+
         # 使用 Delaunay 三角化
         if len(self.points) >= 3:
             points_array = np.array(self.points)
@@ -341,14 +344,47 @@ class InteractivePlot:
         triangle = plt.Polygon(pts, edgecolor='black', fill=None, lw=2, zorder=2)
         self.ax.add_patch(triangle)
 
-        # 绘制边的距离信息，并避免与点或边重叠
+        # 绘制边的距离信息（整數），並避免重複與重疊
         for i in range(3):
             p1 = pts[i]
             p2 = pts[(i + 1) % 3]
+            edge_key = tuple(sorted(((float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1])))))
+            if edge_key in self._drawn_edges:
+                continue
+            self._drawn_edges.add(edge_key)
+
             mid_x = (p1[0] + p2[0]) / 2
             mid_y = (p1[1] + p2[1]) / 2
-            distance = self.distance(p1, p2)
-            self.ax.text(mid_x, mid_y, f'{distance:.2f}', fontsize=10, color='gray', zorder=5)
+            direction = np.array([p2[0] - p1[0], p2[1] - p1[1]], dtype=float)
+            norm = np.linalg.norm(direction)
+            if norm > 0:
+                normal = np.array([-direction[1], direction[0]]) / norm
+            else:
+                normal = np.array([0.0, 0.0])
+
+            candidates = [
+                (mid_x + normal[0] * 1.2, mid_y + normal[1] * 1.2),
+                (mid_x - normal[0] * 1.2, mid_y - normal[1] * 1.2),
+                (mid_x, mid_y),
+            ]
+
+            def placement_score(pos):
+                if not self._distance_label_positions:
+                    return float("inf")
+                return min(np.hypot(pos[0] - x, pos[1] - y) for x, y in self._distance_label_positions)
+
+            label_x, label_y = max(candidates, key=placement_score)
+            self._distance_label_positions.append((label_x, label_y))
+            distance = int(round(self.distance(p1, p2)))
+            self.ax.text(
+                label_x,
+                label_y,
+                f'{distance}',
+                fontsize=9,
+                color='dimgray',
+                zorder=5,
+                bbox=dict(facecolor='white', edgecolor='none', alpha=0.55, boxstyle='round,pad=0.15')
+            )
 
 if __name__ == "__main__":
     plot = InteractivePlot()  # 不限制邻近点数量
