@@ -189,6 +189,9 @@
         </div>
         <div class="button-row">
           <button id="addFiltered">新增符合條件點</button>
+          <input id="singlePointX" class="range-input" type="number" min="0" max="100" placeholder="X" />
+          <input id="singlePointY" class="range-input" type="number" min="0" max="100" placeholder="Y" />
+          <button id="addSinglePoint">新增單點</button>
           <button id="clear">清空所有點</button>
           <button id="undo">還原上一步</button>
         </div>
@@ -286,7 +289,7 @@
     <button id="toggleToolbar">隱藏工具列</button>
     <button id="toggleFullscreen">地圖全螢幕</button>
   </div>
-  <p class="hint">左鍵點圖可刪除點（或在關注模式設定關注色），右鍵可新增/刪除。座標範圍：0~100。</p>
+  <p class="hint">左鍵點圖可刪除點（或在關注模式設定關注色），右鍵可新增/刪除；也可在工具列輸入 X/Y 新增單點。座標範圍：0~100。</p>
   <div id="status" class="status">準備就緒。</div>
   <div id="mapPane">
     <div id="chart"></div>
@@ -666,6 +669,57 @@ async function addFilteredPoints() {
   }, '已新增符合條件點。');
 }
 
+async function addSinglePointFromInput() {
+  const x = Math.round(toCoordNumber(document.getElementById('singlePointX').value));
+  const y = Math.round(toCoordNumber(document.getElementById('singlePointY').value));
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    setStatus('請輸入有效的整數座標。', true);
+    return;
+  }
+  if (x < 0 || x > 100 || y < 0 || y > 100) {
+    setStatus('單點座標需在 0~100 之間。', true);
+    return;
+  }
+
+  const qs = new URLSearchParams({
+    x_min: String(x),
+    x_max: String(x),
+    y_min: String(y),
+    y_max: String(y),
+  });
+  await withStatus('正在新增指定單點...', async () => {
+    const r = await fetch(endpoint(`/api/points/query?${qs.toString()}`));
+    if (!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${r.status}`);
+    }
+    const data = await r.json();
+    applyPointMutation(() => {
+      const existingIndex = selectedPoints.findIndex((p) => p.x === x && p.y === y);
+      const pointData = data?.[0];
+      if (existingIndex >= 0) {
+        selectedPoints[existingIndex] = {
+          ...selectedPoints[existingIndex],
+          resource: pointData?.resource || selectedPoints[existingIndex].resource || '',
+          wonder: pointData?.wonder || selectedPoints[existingIndex].wonder || '',
+        };
+      } else {
+        selectedPoints.push({
+          x,
+          y,
+          resource: pointData?.resource || '',
+          wonder: pointData?.wonder || '',
+          color: getNewPointColor(),
+          note: '',
+          focusMarker: '',
+          focusEmoji: '',
+        });
+      }
+    });
+    await redraw();
+  }, `已新增單點 (${x}, ${y})。`);
+}
+
 async function triangulate(points) {
   const r = await fetch(endpoint('/api/triangulate'), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -886,6 +940,14 @@ function bindEvents() {
   });
 
   document.getElementById('addFiltered').onclick = addFilteredPoints;
+  document.getElementById('addSinglePoint').onclick = addSinglePointFromInput;
+  ['singlePointX', 'singlePointY'].forEach((id) => {
+    document.getElementById(id).addEventListener('keydown', async (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      await addSinglePointFromInput();
+    });
+  });
   ['xMin', 'xMax', 'yMin', 'yMax'].forEach((id) => {
     document.getElementById(id).addEventListener('change', async () => {
       const { isValid } = getConfiguredRange();
