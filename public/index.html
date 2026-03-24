@@ -6,9 +6,60 @@
   <title>DistanceViewer Web</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 16px; }
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    body { font-family: Arial, sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: start;
+    }
     .toolbar.hidden { display: none; }
+    .control-group {
+      background: #ffffff;
+      border: 1px solid #d8e0ea;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+    }
+    .control-title {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: #0f4c81;
+    }
+    .control-grid {
+      display: grid;
+      gap: 8px;
+    }
+    .inline-fields {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 14px;
+    }
+    .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid #c5d3e3;
+      background: #f8fbff;
+      color: #0b3a66;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #edf5ff;
+    }
     .view-controls { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
     #mapPane { width: min(92vw, 78vh); margin: 0 auto; }
     #mapPane:fullscreen {
@@ -29,50 +80,81 @@
     .hint { color: #555; font-size: 14px; }
     .status { margin: 8px 0 12px; color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 4px; padding: 8px 10px; min-height: 18px; }
     .status.error { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
-    #saveName { width: 170px; }
+    #saveName { width: 100%; max-width: 260px; }
     #saveList { min-width: 220px; }
   </style>
 </head>
 <body>
   <h2>DistanceViewer（Web 版）</h2>
   <div class="toolbar">
-    <label>資源
-      <select id="resource"></select>
-    </label>
-    <label>神蹟
-      <select id="wonder"></select>
-    </label>
-    <label>X 範圍
-      <input id="xMin" type="number" min="0" max="100" value="0" style="width:70px" />
-      ~
-      <input id="xMax" type="number" min="0" max="100" value="100" style="width:70px" />
-    </label>
-    <label>Y 範圍
-      <input id="yMin" type="number" min="0" max="100" value="0" style="width:70px" />
-      ~
-      <input id="yMax" type="number" min="0" max="100" value="100" style="width:70px" />
-    </label>
-    <label>新增點顏色
-      <input id="newPointColor" type="color" value="#1f77b4" />
-    </label>
-    <label>關注目標色
-      <input id="focusColor" type="color" value="#d62728" />
-    </label>
-    <button id="addFiltered">新增符合條件點</button>
-    <button id="setFocusPoint">點選點設為關注目標</button>
-    <button id="toggleEdges">切換邊線</button>
-    <button id="toggleLabels">切換標籤</button>
-    <input id="saveName" type="text" placeholder="存檔名稱（例：主城圈）" />
-    <button id="saveAs">另存新版本</button>
-    <button id="save">覆寫目前版本</button>
-    <select id="saveList"></select>
-    <button id="load">載入選取版本</button>
-    <button id="renameSave">重新命名</button>
-    <button id="deleteSave">刪除版本</button>
-    <button id="exportSave">匯出到本機</button>
-    <button id="importSave">匯入檔案到瀏覽器</button>
-    <input id="importFile" type="file" accept="application/json" style="display:none" />
-    <button id="clear">清空所有點</button>
+    <section class="control-group">
+      <h3 class="control-title">篩選與新增</h3>
+      <div class="control-grid">
+        <label>資源
+          <select id="resource"></select>
+        </label>
+        <label>神蹟
+          <select id="wonder"></select>
+        </label>
+        <label>X 範圍
+          <span class="inline-fields">
+            <input id="xMin" type="number" min="0" max="100" value="0" style="width:70px" />
+            ~
+            <input id="xMax" type="number" min="0" max="100" value="100" style="width:70px" />
+          </span>
+        </label>
+        <label>Y 範圍
+          <span class="inline-fields">
+            <input id="yMin" type="number" min="0" max="100" value="0" style="width:70px" />
+            ~
+            <input id="yMax" type="number" min="0" max="100" value="100" style="width:70px" />
+          </span>
+        </label>
+        <div class="button-row">
+          <button id="addFiltered">新增符合條件點</button>
+          <button id="clear">清空所有點</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="control-group">
+      <h3 class="control-title">視覺與標記</h3>
+      <div class="control-grid">
+        <label>新增點顏色
+          <input id="newPointColor" type="color" value="#1f77b4" />
+        </label>
+        <label>關注目標色
+          <input id="focusColor" type="color" value="#d62728" />
+        </label>
+        <div class="button-row">
+          <button id="setFocusPoint">點選點設為關注目標</button>
+          <button id="toggleEdges">切換邊線</button>
+          <button id="toggleLabels">切換標籤</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="control-group">
+      <h3 class="control-title">版本管理</h3>
+      <div class="control-grid">
+        <input id="saveName" type="text" placeholder="存檔名稱（例：主城圈）" />
+        <div class="button-row">
+          <button id="saveAs">另存新版本</button>
+          <button id="save">覆寫目前版本</button>
+        </div>
+        <select id="saveList"></select>
+        <div class="button-row">
+          <button id="load">載入選取版本</button>
+          <button id="renameSave">重新命名</button>
+          <button id="deleteSave">刪除版本</button>
+        </div>
+        <div class="button-row">
+          <button id="exportSave">匯出到本機</button>
+          <button id="importSave">匯入檔案到瀏覽器</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none" />
+        </div>
+      </div>
+    </section>
   </div>
   <div class="view-controls">
     <button id="toggleToolbar">隱藏工具列</button>
