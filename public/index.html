@@ -636,6 +636,15 @@ function pickDistanceLabelEdges(edges) {
   });
 }
 
+function buildAnnotationOffset(point) {
+  // 避免文字註解遮住關注圖示：統一往右上偏移，emoji 額外加大位移。
+  const hasFocusMarker = Boolean(point.focusMarker);
+  const isEmojiMarker = point.focusMarker === 'emoji';
+  const xshift = isEmojiMarker ? 26 : (hasFocusMarker ? 20 : 14);
+  const yshift = isEmojiMarker ? -26 : (hasFocusMarker ? -20 : -14);
+  return { xshift, yshift };
+}
+
 async function loadOptions() {
   await withStatus('正在載入篩選選項...', async () => {
     const r = await fetch(endpoint('/api/options'));
@@ -832,29 +841,33 @@ async function redraw() {
     annotations: showAnnotations
       ? selectedPoints
           .filter((p) => (p.note || '').trim())
-          .map((p) => ({
-            x: p.x,
-            y: p.y,
-            text: p.note,
-            xanchor: 'center',
-            yanchor: 'top',
-            yshift: -14,
-            showarrow: true,
-            arrowhead: 2,
-            arrowsize: 1,
-            arrowwidth: 1,
-            arrowcolor: '#374151',
-            bordercolor: '#7c3aed',
-            borderwidth: 1.5,
-            borderpad: 4,
-            bgcolor: getAnnotationBgColor(),
-            opacity: 0.98,
-            font: {
-              size: getAnnotationFontSize(),
-              color: getAnnotationTextColor(),
-              family: getAnnotationFontFamily(),
-            },
-          }))
+          .map((p) => {
+            const { xshift, yshift } = buildAnnotationOffset(p);
+            return {
+              x: p.x,
+              y: p.y,
+              text: p.note,
+              xanchor: 'left',
+              yanchor: 'bottom',
+              xshift,
+              yshift,
+              showarrow: true,
+              arrowhead: 2,
+              arrowsize: 1,
+              arrowwidth: 1,
+              arrowcolor: '#374151',
+              bordercolor: '#7c3aed',
+              borderwidth: 1.5,
+              borderpad: 4,
+              bgcolor: getAnnotationBgColor(),
+              opacity: 0.98,
+              font: {
+                size: getAnnotationFontSize(),
+                color: getAnnotationTextColor(),
+                family: getAnnotationFontFamily(),
+              },
+            };
+          })
       : [],
   };
 
