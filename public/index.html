@@ -623,7 +623,9 @@ async function redraw() {
     type: 'scatter',
     marker: {
       size: 10,
-      color: selectedPoints.map(p => p.color || 'blue'),
+      color: selectedPoints.map((p) => (
+        p.focusMarker === 'emoji' ? 'rgba(0,0,0,0)' : (p.color || 'blue')
+      )),
       symbol: selectedPoints.map((p) => {
         if (p.focusMarker === 'diamond') return 'diamond';
         if (p.focusMarker === 'star') return 'star';
@@ -637,20 +639,6 @@ async function redraw() {
   };
 
   const traces = [tracePoints];
-  const emojiFocusPoints = selectedPoints.filter((p) => p.focusMarker === 'emoji');
-  if (emojiFocusPoints.length) {
-    traces.push({
-      x: emojiFocusPoints.map((p) => p.x),
-      y: emojiFocusPoints.map((p) => p.y),
-      mode: 'text',
-      type: 'scatter',
-      text: emojiFocusPoints.map((p) => p.focusEmoji || '🔥'),
-      textposition: 'middle center',
-      textfont: { size: 18 },
-      hoverinfo: 'skip',
-      cliponaxis: false,
-    });
-  }
 
   if (showAnnotations) {
     const notedPoints = selectedPoints.filter((p) => (p.note || '').trim());
@@ -681,6 +669,21 @@ async function redraw() {
         });
       }
     }
+  }
+
+  const emojiFocusPoints = selectedPoints.filter((p) => p.focusMarker === 'emoji');
+  if (emojiFocusPoints.length) {
+    traces.push({
+      x: emojiFocusPoints.map((p) => p.x),
+      y: emojiFocusPoints.map((p) => p.y),
+      mode: 'text',
+      type: 'scatter',
+      text: emojiFocusPoints.map((p) => p.focusEmoji || '🔥'),
+      textposition: 'middle center',
+      textfont: { size: 18 },
+      hovertemplate: emojiFocusPoints.map((p) => `(${p.x}, ${p.y})<extra></extra>`),
+      cliponaxis: false,
+    });
   }
 
   const layout = {
@@ -775,9 +778,12 @@ function togglePoint(x, y, shouldApplyFocusColor = false, shouldEditAnnotation =
     if (shouldEditAnnotation) {
       editPointAnnotation(selectedPoints[idx]);
     } else if (shouldApplyFocusColor) {
-      selectedPoints[idx].color = getFocusColor();
-      selectedPoints[idx].focusMarker = getFocusStyle();
+      const focusStyle = getFocusStyle();
+      selectedPoints[idx].focusMarker = focusStyle;
       selectedPoints[idx].focusEmoji = getFocusEmoji();
+      if (focusStyle !== 'emoji') {
+        selectedPoints[idx].color = getFocusColor();
+      }
     } else {
       selectedPoints.splice(idx, 1);
     }
@@ -838,7 +844,7 @@ function bindEvents() {
     if (focusMode) annotationMode = false;
     syncFocusButtonText();
     syncAnnotationButtonText();
-    setStatus(focusMode ? '已開啟關注模式，左鍵點既有點可套用顏色與造型。' : '已關閉關注模式。');
+    setStatus(focusMode ? '已開啟關注模式，左鍵點既有點可套用關注設定（emoji 會以表情符號覆蓋顯示）。' : '已關閉關注模式。');
   };
   document.getElementById('setAnnotationPoint').onclick = () => {
     annotationMode = !annotationMode;
