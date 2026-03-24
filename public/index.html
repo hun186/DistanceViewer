@@ -8,11 +8,11 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 16px; background: #f5f7fb; color: #1f2937; }
     .toolbar {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: minmax(320px, 1.15fr) minmax(360px, 1.35fr) minmax(300px, 0.95fr);
       gap: 10px;
       margin-bottom: 10px;
-      align-items: start;
+      align-items: stretch;
     }
     .toolbar.hidden { display: none; }
     .control-group {
@@ -21,20 +21,8 @@
       border-radius: 10px;
       padding: 10px;
       box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
-      flex: 1 1 auto;
-      min-width: 320px;
-    }
-    .group-filter {
-      flex-basis: 370px;
-      max-width: 620px;
-    }
-    .group-visual {
-      flex-basis: 420px;
-      max-width: 700px;
-    }
-    .group-version {
-      flex: 0 1 430px;
-      min-width: 360px;
+      min-width: 0;
+      width: 100%;
     }
     .control-title {
       margin: 0 0 10px;
@@ -77,6 +65,13 @@
     input[type="number"] {
       width: 100%;
       box-sizing: border-box;
+      max-width: 100%;
+    }
+    .field-grid select {
+      max-width: 300px;
+    }
+    .field-grid input[type="text"] {
+      max-width: 360px;
     }
     input[type="color"] {
       width: 64px;
@@ -85,10 +80,10 @@
       padding: 2px;
     }
     .range-input {
-      width: 74px !important;
+      width: 84px !important;
     }
     .font-size-input {
-      width: 96px !important;
+      width: 110px !important;
     }
     .color-grid {
       display: grid;
@@ -108,8 +103,9 @@
     }
     .button-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
       gap: 6px;
+      justify-content: start;
     }
     button {
       border: 1px solid #c5d3e3;
@@ -117,7 +113,8 @@
       color: #0b3a66;
       border-radius: 6px;
       padding: 6px 8px;
-      width: 100%;
+      width: auto;
+      min-width: 140px;
       cursor: pointer;
     }
     button:hover {
@@ -143,12 +140,16 @@
     .hint { color: #555; font-size: 14px; }
     .status { margin: 8px 0 12px; color: #0f5132; background: #d1e7dd; border: 1px solid #badbcc; border-radius: 4px; padding: 8px 10px; min-height: 18px; }
     .status.error { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
-    #saveName { max-width: 100%; }
-    #saveList { min-width: 0; width: 100%; }
-    @media (max-width: 1180px) {
-      .group-version {
-        flex: 1 1 420px;
-        max-width: none;
+    #saveName { max-width: 320px; }
+    #saveList { min-width: 0; width: 100%; max-width: 360px; }
+    @media (max-width: 1320px) {
+      .toolbar {
+        grid-template-columns: repeat(2, minmax(320px, 1fr));
+      }
+    }
+    @media (max-width: 940px) {
+      .toolbar {
+        grid-template-columns: 1fr;
       }
     }
     @media (max-width: 760px) {
