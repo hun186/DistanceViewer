@@ -1,11 +1,11 @@
 {
   "format": "distanceViewer.save.v2",
-  "exportedAt": "2026-03-24T10:47:16.341Z",
+  "exportedAt": "2026-03-24T11:02:00.322Z",
   "save": {
-    "id": "save_1774349232589_df2h94",
+    "id": "save_1774350103307_8e9mn0",
     "name": "AFBA",
-    "createdAt": "2026-03-24T10:47:12.589Z",
-    "updatedAt": "2026-03-24T10:47:12.589Z",
+    "createdAt": "2026-03-24T11:01:43.306Z",
+    "updatedAt": "2026-03-24T11:01:43.306Z",
     "points": [
       {
         "x": 17,
@@ -173,7 +173,7 @@
         "resource": "石",
         "wonder": "海豚",
         "color": "#0000ff",
-        "note": "阿華、天哥、盟主",
+        "note": "天哥、盟主",
         "focusMarker": "emoji",
         "focusEmoji": "⛏️"
       },
@@ -196,6 +196,16 @@
         "note": "livefish",
         "focusMarker": "emoji",
         "focusEmoji": "⛺"
+      },
+      {
+        "x": 8,
+        "y": 28,
+        "resource": "石",
+        "wonder": "哈迪斯",
+        "color": "#000000",
+        "note": "阿華",
+        "focusMarker": "emoji",
+        "focusEmoji": "🏠"
       }
     ]
   }
