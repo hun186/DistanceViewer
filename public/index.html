@@ -126,6 +126,18 @@
         <label>關注目標色
           <input id="focusColor" type="color" value="#d62728" />
         </label>
+        <label>註解文字色
+          <input id="annotationTextColor" type="color" value="#7c3aed" />
+        </label>
+        <label>註解底色
+          <input id="annotationBgColor" type="color" value="#fff4d6" />
+        </label>
+        <label>註解字型
+          <input id="annotationFontFamily" type="text" value="Arial, sans-serif" />
+        </label>
+        <label>註解字級
+          <input id="annotationFontSize" type="number" min="10" max="48" value="16" style="width:90px" />
+        </label>
         <div class="button-row">
           <button id="setFocusPoint">點選點設為關注目標</button>
           <button id="setAnnotationPoint">點選點編輯註解</button>
@@ -179,10 +191,21 @@ let toolbarVisible = true;
 let chartInitialized = false;
 const STORAGE_KEY = 'distanceViewerSavesV2';
 let activeSaveId = '';
+let currentViewRange = null;
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
 function getFocusColor() { return document.getElementById('focusColor').value; }
+function getAnnotationTextColor() { return document.getElementById('annotationTextColor').value; }
+function getAnnotationBgColor() { return document.getElementById('annotationBgColor').value; }
+function getAnnotationFontFamily() {
+  return (document.getElementById('annotationFontFamily').value || '').trim() || 'Arial, sans-serif';
+}
+function getAnnotationFontSize() {
+  const value = Number(document.getElementById('annotationFontSize').value);
+  if (!Number.isFinite(value)) return 16;
+  return Math.min(48, Math.max(10, Math.round(value)));
+}
 function toCoordNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
@@ -441,6 +464,9 @@ async function triangulate(points) {
 async function redraw() {
   setStatus('正在重繪圖表...');
   const { xMin, xMax, yMin, yMax } = getConfiguredRange();
+  if (!currentViewRange) {
+    currentViewRange = { xMin, xMax, yMin, yMax };
+  }
   const tracePoints = {
     x: selectedPoints.map(p => p.x),
     y: selectedPoints.map(p => p.y),
@@ -457,16 +483,7 @@ async function redraw() {
   if (showAnnotations) {
     const notedPoints = selectedPoints.filter((p) => (p.note || '').trim());
     if (notedPoints.length) {
-      traces.push({
-        x: notedPoints.map((p) => p.x),
-        y: notedPoints.map((p) => p.y),
-        text: notedPoints.map((p) => p.note),
-        mode: 'text',
-        type: 'scatter',
-        textposition: 'bottom center',
-        textfont: { size: 12, color: '#7c3aed' },
-        hoverinfo: 'skip',
-      });
+      // 註解改成 layout.annotations 以提供更顯眼樣式（底色、邊框、字型）
     }
   }
   if (showEdges && selectedPoints.length >= 3) {
@@ -480,10 +497,37 @@ async function redraw() {
   }
 
   const layout = {
-    xaxis: { range: [xMin, xMax], dtick: 5 },
-    yaxis: { range: [yMax, yMin], dtick: 5, scaleanchor: 'x', scaleratio: 1 },
+    xaxis: { range: [currentViewRange.xMin, currentViewRange.xMax], dtick: 5 },
+    yaxis: { range: [currentViewRange.yMax, currentViewRange.yMin], dtick: 5, scaleanchor: 'x', scaleratio: 1 },
     margin: { l: 40, r: 20, b: 40, t: 20 },
     showlegend: false,
+    annotations: showAnnotations
+      ? selectedPoints
+          .filter((p) => (p.note || '').trim())
+          .map((p) => ({
+            x: p.x,
+            y: p.y,
+            text: p.note,
+            xanchor: 'center',
+            yanchor: 'top',
+            yshift: -14,
+            showarrow: true,
+            arrowhead: 2,
+            arrowsize: 1,
+            arrowwidth: 1,
+            arrowcolor: '#374151',
+            bordercolor: '#7c3aed',
+            borderwidth: 1.5,
+            borderpad: 4,
+            bgcolor: getAnnotationBgColor(),
+            opacity: 0.98,
+            font: {
+              size: getAnnotationFontSize(),
+              color: getAnnotationTextColor(),
+              family: getAnnotationFontFamily(),
+            },
+          }))
+      : [],
   };
 
   if (chartInitialized) {
@@ -491,6 +535,36 @@ async function redraw() {
   } else {
     await Plotly.newPlot('chart', traces, layout, { responsive: true });
     chartInitialized = true;
+    document.getElementById('chart').on('plotly_relayout', (evt) => {
+      const next = { ...currentViewRange };
+      if (Array.isArray(evt['xaxis.range']) && evt['xaxis.range'].length === 2) {
+        next.xMin = Number(evt['xaxis.range'][0]);
+        next.xMax = Number(evt['xaxis.range'][1]);
+      } else {
+        if (Number.isFinite(evt['xaxis.range[0]'])) next.xMin = Number(evt['xaxis.range[0]']);
+        if (Number.isFinite(evt['xaxis.range[1]'])) next.xMax = Number(evt['xaxis.range[1]']);
+      }
+      if (Array.isArray(evt['yaxis.range']) && evt['yaxis.range'].length === 2) {
+        const y0 = Number(evt['yaxis.range'][0]);
+        const y1 = Number(evt['yaxis.range'][1]);
+        next.yMax = Math.max(y0, y1);
+        next.yMin = Math.min(y0, y1);
+      } else {
+        const y0 = Number(evt['yaxis.range[0]']);
+        const y1 = Number(evt['yaxis.range[1]']);
+        if (Number.isFinite(y0) && Number.isFinite(y1)) {
+          next.yMax = Math.max(y0, y1);
+          next.yMin = Math.min(y0, y1);
+        }
+      }
+      if (
+        [next.xMin, next.xMax, next.yMin, next.yMax].every(Number.isFinite)
+        && next.xMin < next.xMax
+        && next.yMin < next.yMax
+      ) {
+        currentViewRange = next;
+      }
+    });
   }
   setStatus('圖表更新完成。');
 }
@@ -550,9 +624,18 @@ function bindEvents() {
         setStatus('X / Y 範圍需在 0~100，且最小值不可大於最大值。', true);
         return;
       }
+      const range = getConfiguredRange();
+      currentViewRange = { ...range };
       await redraw();
     });
   });
+  ['annotationTextColor', 'annotationBgColor', 'annotationFontFamily', 'annotationFontSize']
+    .forEach((id) => {
+      const eventName = id === 'annotationFontFamily' ? 'change' : 'input';
+      document.getElementById(id).addEventListener(eventName, async () => {
+        await redraw();
+      });
+    });
   document.getElementById('setFocusPoint').onclick = () => {
     focusMode = !focusMode;
     if (focusMode) annotationMode = false;
