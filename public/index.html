@@ -293,6 +293,28 @@ function toCoordNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : NaN;
 }
+function captureViewRangeFromChart() {
+  if (!chartInitialized) return null;
+  const chart = document.getElementById('chart');
+  const xRange = chart?._fullLayout?.xaxis?.range;
+  const yRange = chart?._fullLayout?.yaxis?.range;
+  if (!Array.isArray(xRange) || xRange.length !== 2 || !Array.isArray(yRange) || yRange.length !== 2) {
+    return null;
+  }
+  const x0 = Number(xRange[0]);
+  const x1 = Number(xRange[1]);
+  const y0 = Number(yRange[0]);
+  const y1 = Number(yRange[1]);
+  if (![x0, x1, y0, y1].every(Number.isFinite)) return null;
+  const nextRange = {
+    xMin: Math.min(x0, x1),
+    xMax: Math.max(x0, x1),
+    yMin: Math.min(y0, y1),
+    yMax: Math.max(y0, y1),
+  };
+  if (!(nextRange.xMin < nextRange.xMax && nextRange.yMin < nextRange.yMax)) return null;
+  return nextRange;
+}
 function getConfiguredRange() {
   const xMin = Math.round(toCoordNumber(document.getElementById('xMin').value));
   const xMax = Math.round(toCoordNumber(document.getElementById('xMax').value));
@@ -563,6 +585,10 @@ async function triangulate(points) {
 
 async function redraw() {
   setStatus('正在重繪圖表...');
+  const liveRange = captureViewRangeFromChart();
+  if (liveRange) {
+    currentViewRange = liveRange;
+  }
   const { xMin, xMax, yMin, yMax } = getConfiguredRange();
   if (!currentViewRange) {
     currentViewRange = { xMin, xMax, yMin, yMax };
