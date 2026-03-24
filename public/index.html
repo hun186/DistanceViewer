@@ -128,8 +128,10 @@
         </label>
         <div class="button-row">
           <button id="setFocusPoint">點選點設為關注目標</button>
+          <button id="setAnnotationPoint">點選點編輯註解</button>
           <button id="toggleEdges">切換邊線</button>
           <button id="toggleLabels">切換標籤</button>
+          <button id="toggleAnnotations">切換註解顯示</button>
         </div>
       </div>
     </section>
@@ -171,6 +173,8 @@ let selectedPoints = [];
 let showEdges = true;
 let showLabels = true;
 let focusMode = false;
+let annotationMode = false;
+let showAnnotations = true;
 let toolbarVisible = true;
 let chartInitialized = false;
 const STORAGE_KEY = 'distanceViewerSavesV2';
@@ -214,6 +218,7 @@ function clonePoints(points) {
     resource: p.resource || '',
     wonder: p.wonder || '',
     color: p.color || getNewPointColor(),
+    note: p.note || '',
   })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
 }
 function readSaveStore() {
@@ -362,6 +367,16 @@ function syncFocusButtonText() {
     ? '關注模式：開（點一下點可上色）'
     : '關注模式：關';
 }
+function syncAnnotationButtonText() {
+  document.getElementById('setAnnotationPoint').textContent = annotationMode
+    ? '註解模式：開（點一下點可編輯）'
+    : '註解模式：關';
+}
+function syncAnnotationVisibilityText() {
+  document.getElementById('toggleAnnotations').textContent = showAnnotations
+    ? '註解顯示：開'
+    : '註解顯示：關';
+}
 function syncViewControlText() {
   document.getElementById('toggleToolbar').textContent = toolbarVisible
     ? '隱藏工具列'
@@ -438,6 +453,22 @@ async function redraw() {
   };
 
   const traces = [tracePoints];
+
+  if (showAnnotations) {
+    const notedPoints = selectedPoints.filter((p) => (p.note || '').trim());
+    if (notedPoints.length) {
+      traces.push({
+        x: notedPoints.map((p) => p.x),
+        y: notedPoints.map((p) => p.y),
+        text: notedPoints.map((p) => p.note),
+        mode: 'text',
+        type: 'scatter',
+        textposition: 'bottom center',
+        textfont: { size: 12, color: '#7c3aed' },
+        hoverinfo: 'skip',
+      });
+    }
+  }
   if (showEdges && selectedPoints.length >= 3) {
     const edges = await triangulate(selectedPoints);
     edges.forEach(e => {
@@ -464,7 +495,15 @@ async function redraw() {
   setStatus('圖表更新完成。');
 }
 
-function togglePoint(x, y, shouldApplyFocusColor = false) {
+function editPointAnnotation(point) {
+  const current = point.note || '';
+  const next = window.prompt('請輸入註解（留白可清除）', current);
+  if (next === null) return false;
+  point.note = next.trim();
+  return true;
+}
+
+function togglePoint(x, y, shouldApplyFocusColor = false, shouldEditAnnotation = false) {
   x = Math.round(toCoordNumber(x)); y = Math.round(toCoordNumber(y));
   if (!Number.isFinite(x) || !Number.isFinite(y)) return;
   if (x < 0 || x > 100 || y < 0 || y > 100) return;
@@ -472,10 +511,15 @@ function togglePoint(x, y, shouldApplyFocusColor = false) {
     Math.round(toCoordNumber(p.x)) === x && Math.round(toCoordNumber(p.y)) === y
   ));
   if (idx >= 0) {
-    if (shouldApplyFocusColor) selectedPoints[idx].color = getFocusColor();
-    else selectedPoints.splice(idx, 1);
+    if (shouldEditAnnotation) {
+      editPointAnnotation(selectedPoints[idx]);
+    } else if (shouldApplyFocusColor) {
+      selectedPoints[idx].color = getFocusColor();
+    } else {
+      selectedPoints.splice(idx, 1);
+    }
   } else {
-    selectedPoints.push({ x, y, resource: '', wonder: '', color: getNewPointColor() });
+    selectedPoints.push({ x, y, resource: '', wonder: '', color: getNewPointColor(), note: '' });
   }
 }
 
@@ -511,11 +555,25 @@ function bindEvents() {
   });
   document.getElementById('setFocusPoint').onclick = () => {
     focusMode = !focusMode;
+    if (focusMode) annotationMode = false;
     syncFocusButtonText();
+    syncAnnotationButtonText();
     setStatus(focusMode ? '已開啟關注模式，左鍵點既有點可改成關注色。' : '已關閉關注模式。');
+  };
+  document.getElementById('setAnnotationPoint').onclick = () => {
+    annotationMode = !annotationMode;
+    if (annotationMode) focusMode = false;
+    syncAnnotationButtonText();
+    syncFocusButtonText();
+    setStatus(annotationMode ? '已開啟註解模式，左鍵點既有點可新增/修改註解。' : '已關閉註解模式。');
   };
   document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
   document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
+  document.getElementById('toggleAnnotations').onclick = async () => {
+    showAnnotations = !showAnnotations;
+    syncAnnotationVisibilityText();
+    await redraw();
+  };
   document.getElementById('saveAs').onclick = () => withStatus('正在建立新版本...', async () => {
     saveCurrentAsNewVersion(getSaveNameInput());
   }, '已建立新版本。');
@@ -570,7 +628,7 @@ function bindEvents() {
   document.getElementById('chart').on('plotly_click', async (eventData) => {
     const pt = eventData.points?.[0];
     if (!pt) return;
-    togglePoint(pt.x, pt.y, focusMode);
+    togglePoint(pt.x, pt.y, focusMode, annotationMode);
     await redraw();
   });
 
@@ -589,6 +647,8 @@ function bindEvents() {
 
 (async function init() {
   syncFocusButtonText();
+  syncAnnotationButtonText();
+  syncAnnotationVisibilityText();
   syncViewControlText();
   setStatus('初始化中，請稍候...');
   refreshSaveList();
