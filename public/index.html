@@ -291,7 +291,7 @@
     <button id="toggleToolbar">隱藏工具列</button>
     <button id="toggleFullscreen">地圖全螢幕</button>
   </div>
-  <p class="hint">左鍵點圖可新增點（關注/註解/文字方塊模式下可套用設定），右鍵可刪除點；也可在工具列輸入 X/Y 新增單點。座標範圍：0~100。</p>
+  <p class="hint">左鍵點圖可新增點（關注/註解/文字方塊模式下可套用設定），右鍵可刪除點；文字方塊模式下可左鍵點既有方塊編輯、右鍵刪除、拖曳移動。座標範圍：0~100。</p>
   <div id="status" class="status">準備就緒。</div>
   <div id="mapPane">
     <div id="chart"></div>
@@ -316,6 +316,8 @@ let activeSaveId = '';
 let currentViewRange = null;
 const EXPORT_IMAGE_SCALE = 3;
 let customTextBoxes = [];
+let selectedTextBoxIndex = -1;
+let textBoxDragState = null;
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -448,6 +450,9 @@ function cloneTextBoxes(boxes) {
     x: Number(box.x),
     y: Number(box.y),
     text: (box.text || '').trim(),
+    textColor: box.textColor || getAnnotationTextColor(),
+    bgColor: box.bgColor || getAnnotationBgColor(),
+    fontSize: Number.isFinite(Number(box.fontSize)) ? Number(box.fontSize) : getAnnotationFontSize(),
   })).filter((box) => Number.isFinite(box.x) && Number.isFinite(box.y) && box.text);
 }
 function createStateSnapshot() {
@@ -494,7 +499,10 @@ function textBoxesEqual(a, b) {
     const target = b[idx];
     return box.x === target.x
       && box.y === target.y
-      && box.text === target.text;
+      && box.text === target.text
+      && box.textColor === target.textColor
+      && box.bgColor === target.bgColor
+      && Number(box.fontSize) === Number(target.fontSize);
   });
 }
 function applyPointMutation(mutator) {
@@ -938,7 +946,7 @@ async function redraw() {
                 },
               };
             }),
-          ...customTextBoxes.map((box) => ({
+          ...customTextBoxes.map((box, idx) => ({
             x: box.x,
             y: box.y,
             text: box.text,
@@ -948,13 +956,13 @@ async function redraw() {
             yshift: -12,
             showarrow: false,
             bordercolor: '#1d4ed8',
-            borderwidth: 1.5,
+            borderwidth: idx === selectedTextBoxIndex ? 3 : 1.5,
             borderpad: 4,
-            bgcolor: '#eff6ff',
+            bgcolor: box.bgColor || '#eff6ff',
             opacity: 0.98,
             font: {
-              size: getAnnotationFontSize(),
-              color: '#1e3a8a',
+              size: Number(box.fontSize) || getAnnotationFontSize(),
+              color: box.textColor || '#1e3a8a',
               family: getAnnotationFontFamily(),
             },
           })),
@@ -1013,7 +1021,34 @@ function addTextBoxAt(x, y) {
   if (text === null) return false;
   const trimmed = text.trim();
   if (!trimmed) return false;
-  customTextBoxes.push({ x, y, text: trimmed });
+  customTextBoxes.push({
+    x,
+    y,
+    text: trimmed,
+    textColor: getAnnotationTextColor(),
+    bgColor: getAnnotationBgColor(),
+    fontSize: getAnnotationFontSize(),
+  });
+  selectedTextBoxIndex = customTextBoxes.length - 1;
+  return true;
+}
+
+function editTextBoxAt(index) {
+  const box = customTextBoxes[index];
+  if (!box) return false;
+  const next = window.prompt('編輯文字方塊內容（留白代表刪除）', box.text || '');
+  if (next === null) return false;
+  const trimmed = next.trim();
+  if (!trimmed) {
+    customTextBoxes.splice(index, 1);
+    selectedTextBoxIndex = -1;
+    return true;
+  }
+  box.text = trimmed;
+  box.textColor = getAnnotationTextColor();
+  box.bgColor = getAnnotationBgColor();
+  box.fontSize = getAnnotationFontSize();
+  selectedTextBoxIndex = index;
   return true;
 }
 
@@ -1063,6 +1098,48 @@ function updatePointOnMode(x, y, shouldApplyFocusColor = false, shouldEditAnnota
       }
     }
   }
+}
+
+function clientToDataPoint(clientX, clientY) {
+  const chart = document.getElementById('chart');
+  const fullLayout = chart?._fullLayout;
+  const xAxis = fullLayout?.xaxis;
+  const yAxis = fullLayout?.yaxis;
+  if (!xAxis || !yAxis) return null;
+  const rect = chart.getBoundingClientRect();
+  const plotX = clientX - rect.left - xAxis._offset;
+  const plotY = clientY - rect.top - yAxis._offset;
+  const isInsidePlot = (
+    plotX >= 0 && plotX <= xAxis._length
+    && plotY >= 0 && plotY <= yAxis._length
+  );
+  if (!isInsidePlot) return null;
+  return {
+    x: xAxis.p2d(plotX),
+    y: yAxis.p2d(plotY),
+    xAxis,
+    yAxis,
+    rect,
+  };
+}
+
+function findNearestTextBoxIndex(clientX, clientY) {
+  if (!customTextBoxes.length) return -1;
+  const point = clientToDataPoint(clientX, clientY);
+  if (!point) return -1;
+  const { xAxis, yAxis, rect } = point;
+  let minDist = Infinity;
+  let minIndex = -1;
+  customTextBoxes.forEach((box, idx) => {
+    const px = rect.left + xAxis._offset + xAxis.d2p(box.x);
+    const py = rect.top + yAxis._offset + yAxis.d2p(box.y);
+    const dist = Math.hypot(clientX - px, clientY - py);
+    if (dist < minDist) {
+      minDist = dist;
+      minIndex = idx;
+    }
+  });
+  return minDist <= 18 ? minIndex : -1;
 }
 
 function bindEvents() {
@@ -1158,7 +1235,7 @@ function bindEvents() {
     syncTextBoxButtonText();
     syncFocusButtonText();
     syncAnnotationButtonText();
-    setStatus(textBoxMode ? '已開啟文字方塊模式，左鍵點圖可新增文字方塊。' : '已關閉文字方塊模式。');
+    setStatus(textBoxMode ? '已開啟文字方塊模式：左鍵新增或編輯、右鍵刪除、拖曳可移動文字方塊。' : '已關閉文字方塊模式。');
   };
   document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
   document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
@@ -1255,26 +1332,25 @@ function bindEvents() {
   document.getElementById('chart').onclick = async (e) => {
     if (focusMode || annotationMode) return;
     if (e.button !== 0) return;
-    const chart = document.getElementById('chart');
-    const fullLayout = chart._fullLayout;
-    const xAxis = fullLayout?.xaxis;
-    const yAxis = fullLayout?.yaxis;
-    if (!xAxis || !yAxis) return;
-    const rect = chart.getBoundingClientRect();
-    const plotX = e.clientX - rect.left - xAxis._offset;
-    const plotY = e.clientY - rect.top - yAxis._offset;
-    const isInsidePlot = (
-      plotX >= 0 && plotX <= xAxis._length
-      && plotY >= 0 && plotY <= yAxis._length
-    );
-    if (!isInsidePlot) return;
-    const x = xAxis.p2d(plotX);
-    const y = yAxis.p2d(plotY);
+    const point = clientToDataPoint(e.clientX, e.clientY);
+    if (!point) return;
+    const { x, y } = point;
     if (textBoxMode) {
-      applyPointMutation(() => {
-        addTextBoxAt(Math.round(x), Math.round(y));
+      if (textBoxDragState?.moved) {
+        textBoxDragState = null;
+        return;
+      }
+      const targetIdx = findNearestTextBoxIndex(e.clientX, e.clientY);
+      const changed = applyPointMutation(() => {
+        if (targetIdx >= 0) {
+          editTextBoxAt(targetIdx);
+        } else {
+          addTextBoxAt(Math.round(x), Math.round(y));
+        }
       });
-      await redraw();
+      if (changed) {
+        await redraw();
+      }
       return;
     }
     applyPointMutation(() => {
@@ -1285,26 +1361,58 @@ function bindEvents() {
 
   document.getElementById('chart').oncontextmenu = async (e) => {
     e.preventDefault();
-    const chart = document.getElementById('chart');
-    const fullLayout = chart._fullLayout;
-    const xAxis = fullLayout?.xaxis;
-    const yAxis = fullLayout?.yaxis;
-    if (!xAxis || !yAxis) return;
-    const rect = chart.getBoundingClientRect();
-    const plotX = e.clientX - rect.left - xAxis._offset;
-    const plotY = e.clientY - rect.top - yAxis._offset;
-    const isInsidePlot = (
-      plotX >= 0 && plotX <= xAxis._length
-      && plotY >= 0 && plotY <= yAxis._length
-    );
-    if (!isInsidePlot) return;
-    const x = xAxis.p2d(plotX);
-    const y = yAxis.p2d(plotY);
+    const point = clientToDataPoint(e.clientX, e.clientY);
+    if (!point) return;
+    const { x, y } = point;
+    if (textBoxMode) {
+      const targetIdx = findNearestTextBoxIndex(e.clientX, e.clientY);
+      if (targetIdx >= 0) {
+        applyPointMutation(() => {
+          customTextBoxes.splice(targetIdx, 1);
+          selectedTextBoxIndex = -1;
+        });
+        await redraw();
+      }
+      return;
+    }
     applyPointMutation(() => {
       removePoint(x, y);
     });
     await redraw();
   };
+  document.getElementById('chart').addEventListener('mousedown', (e) => {
+    if (!textBoxMode || e.button !== 0) return;
+    const idx = findNearestTextBoxIndex(e.clientX, e.clientY);
+    if (idx < 0) return;
+    const point = clientToDataPoint(e.clientX, e.clientY);
+    if (!point) return;
+    textBoxDragState = {
+      idx,
+      moved: false,
+      startX: point.x,
+      startY: point.y,
+      originX: customTextBoxes[idx].x,
+      originY: customTextBoxes[idx].y,
+    };
+    selectedTextBoxIndex = idx;
+  });
+  document.addEventListener('mousemove', async (e) => {
+    if (!textBoxDragState) return;
+    const point = clientToDataPoint(e.clientX, e.clientY);
+    if (!point) return;
+    const dx = point.x - textBoxDragState.startX;
+    const dy = point.y - textBoxDragState.startY;
+    if (Math.hypot(dx, dy) < 0.3) return;
+    textBoxDragState.moved = true;
+    const idx = textBoxDragState.idx;
+    customTextBoxes[idx].x = Math.max(0, Math.min(100, Math.round(textBoxDragState.originX + dx)));
+    customTextBoxes[idx].y = Math.max(0, Math.min(100, Math.round(textBoxDragState.originY + dy)));
+    await redraw();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!textBoxDragState) return;
+    textBoxDragState = null;
+  });
   document.addEventListener('keydown', async (event) => {
     if (!(event.ctrlKey || event.metaKey)) return;
     const key = event.key.toLowerCase();
