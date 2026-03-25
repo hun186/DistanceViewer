@@ -256,6 +256,7 @@
         <div class="button-row">
           <button id="setFocusPoint">點選點設為關注目標</button>
           <button id="setAnnotationPoint">點選點編輯註解</button>
+          <button id="setTextBox">文字方塊模式：關</button>
           <button id="toggleEdges">切換邊線</button>
           <button id="toggleLabels">切換標籤</button>
           <button id="toggleDistanceLabels">距離顯示：關</button>
@@ -290,7 +291,7 @@
     <button id="toggleToolbar">隱藏工具列</button>
     <button id="toggleFullscreen">地圖全螢幕</button>
   </div>
-  <p class="hint">左鍵點圖可新增點（關注/註解模式下可套用設定），右鍵可刪除點；也可在工具列輸入 X/Y 新增單點。座標範圍：0~100。</p>
+  <p class="hint">左鍵點圖可新增點（關注/註解/文字方塊模式下可套用設定），右鍵可刪除點；也可在工具列輸入 X/Y 新增單點。座標範圍：0~100。</p>
   <div id="status" class="status">準備就緒。</div>
   <div id="mapPane">
     <div id="chart"></div>
@@ -306,6 +307,7 @@ let showLabels = true;
 let showDistanceLabels = false;
 let focusMode = false;
 let annotationMode = false;
+let textBoxMode = false;
 let showAnnotations = true;
 let toolbarVisible = true;
 let chartInitialized = false;
@@ -313,6 +315,7 @@ const STORAGE_KEY = 'distanceViewerSavesV2';
 let activeSaveId = '';
 let currentViewRange = null;
 const EXPORT_IMAGE_SCALE = 3;
+let customTextBoxes = [];
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -440,18 +443,35 @@ function clonePoints(points) {
     focusEmoji: p.focusEmoji || '',
   })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
 }
+function cloneTextBoxes(boxes) {
+  return (boxes || []).map((box) => ({
+    x: Number(box.x),
+    y: Number(box.y),
+    text: (box.text || '').trim(),
+  })).filter((box) => Number.isFinite(box.x) && Number.isFinite(box.y) && box.text);
+}
+function createStateSnapshot() {
+  return {
+    points: clonePoints(selectedPoints),
+    textBoxes: cloneTextBoxes(customTextBoxes),
+  };
+}
+function applyStateSnapshot(snapshot) {
+  selectedPoints = clonePoints(snapshot?.points);
+  customTextBoxes = cloneTextBoxes(snapshot?.textBoxes);
+}
 function undoLastPointChange() {
   if (!pointHistory.length) return false;
-  redoHistory.push(clonePoints(selectedPoints));
+  redoHistory.push(createStateSnapshot());
   if (redoHistory.length > HISTORY_LIMIT) redoHistory.shift();
-  selectedPoints = pointHistory.pop();
+  applyStateSnapshot(pointHistory.pop());
   return true;
 }
 function redoLastPointChange() {
   if (!redoHistory.length) return false;
-  pointHistory.push(clonePoints(selectedPoints));
+  pointHistory.push(createStateSnapshot());
   if (pointHistory.length > HISTORY_LIMIT) pointHistory.shift();
-  selectedPoints = redoHistory.pop();
+  applyStateSnapshot(redoHistory.pop());
   return true;
 }
 function pointsEqual(a, b) {
@@ -468,18 +488,29 @@ function pointsEqual(a, b) {
       && p.focusEmoji === q.focusEmoji;
   });
 }
+function textBoxesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  return a.every((box, idx) => {
+    const target = b[idx];
+    return box.x === target.x
+      && box.y === target.y
+      && box.text === target.text;
+  });
+}
 function applyPointMutation(mutator) {
-  const before = clonePoints(selectedPoints);
+  const before = createStateSnapshot();
   mutator();
-  const after = clonePoints(selectedPoints);
-  if (!pointsEqual(before, after)) {
+  const after = createStateSnapshot();
+  const changed = !pointsEqual(before.points, after.points)
+    || !textBoxesEqual(before.textBoxes, after.textBoxes);
+  if (changed) {
     pointHistory.push(before);
     if (pointHistory.length > HISTORY_LIMIT) pointHistory.shift();
     redoHistory.length = 0;
-    selectedPoints = after;
+    applyStateSnapshot(after);
     return true;
   }
-  selectedPoints = after;
+  applyStateSnapshot(after);
   return false;
 }
 function readSaveStore() {
@@ -529,6 +560,7 @@ function saveCurrentAsNewVersion(name) {
     createdAt: now,
     updatedAt: now,
     points: clonePoints(selectedPoints),
+    textBoxes: cloneTextBoxes(customTextBoxes),
   };
   store.saves.push(item);
   writeSaveStore(store);
@@ -542,6 +574,7 @@ function overwriteSelectedVersion() {
   const target = store.saves.find((save) => save.id === saveId);
   if (!target) throw new Error('找不到指定版本。');
   target.points = clonePoints(selectedPoints);
+  target.textBoxes = cloneTextBoxes(customTextBoxes);
   target.updatedAt = new Date().toISOString();
   const renamed = getSaveNameInput();
   if (renamed) target.name = renamed;
@@ -555,6 +588,7 @@ function loadSelectedVersion() {
   const target = store.saves.find((save) => save.id === saveId);
   if (!target) throw new Error('找不到指定版本。');
   selectedPoints = clonePoints(target.points);
+  customTextBoxes = cloneTextBoxes(target.textBoxes);
   activeSaveId = saveId;
   document.getElementById('saveName').value = target.name || '';
 }
@@ -591,6 +625,7 @@ function buildExportPayload() {
     save: {
       ...target,
       points: clonePoints(target.points),
+      textBoxes: cloneTextBoxes(target.textBoxes),
     },
   };
 }
@@ -605,6 +640,7 @@ function importSavePayload(payload) {
     createdAt: save.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     points: clonePoints(save.points),
+    textBoxes: cloneTextBoxes(save.textBoxes),
   };
   store.saves.push(imported);
   writeSaveStore(store);
@@ -632,6 +668,11 @@ function syncAnnotationButtonText() {
   document.getElementById('setAnnotationPoint').textContent = annotationMode
     ? '註解模式：開（點一下點可編輯）'
     : '註解模式：關';
+}
+function syncTextBoxButtonText() {
+  document.getElementById('setTextBox').textContent = textBoxMode
+    ? '文字方塊模式：開（點圖新增）'
+    : '文字方塊模式：關';
 }
 function syncAnnotationVisibilityText() {
   document.getElementById('toggleAnnotations').textContent = showAnnotations
@@ -871,31 +912,53 @@ async function redraw() {
     margin: { l: 40, r: 20, b: 40, t: 20 },
     showlegend: false,
     annotations: showAnnotations
-      ? selectedPoints
-          .filter((p) => (p.note || '').trim())
-          .map((p) => {
-            const { xshift, yshift } = buildAnnotationOffset(p);
-            return {
-              x: p.x,
-              y: p.y,
-              text: p.note,
-              xanchor: 'left',
-              yanchor: 'bottom',
-              xshift,
-              yshift,
-              showarrow: false,
-              bordercolor: '#7c3aed',
-              borderwidth: 1.5,
-              borderpad: 4,
-              bgcolor: getAnnotationBgColor(),
-              opacity: 0.98,
-              font: {
-                size: getAnnotationFontSize(),
-                color: getAnnotationTextColor(),
-                family: getAnnotationFontFamily(),
-              },
-            };
-          })
+      ? [
+          ...selectedPoints
+            .filter((p) => (p.note || '').trim())
+            .map((p) => {
+              const { xshift, yshift } = buildAnnotationOffset(p);
+              return {
+                x: p.x,
+                y: p.y,
+                text: p.note,
+                xanchor: 'left',
+                yanchor: 'bottom',
+                xshift,
+                yshift,
+                showarrow: false,
+                bordercolor: '#7c3aed',
+                borderwidth: 1.5,
+                borderpad: 4,
+                bgcolor: getAnnotationBgColor(),
+                opacity: 0.98,
+                font: {
+                  size: getAnnotationFontSize(),
+                  color: getAnnotationTextColor(),
+                  family: getAnnotationFontFamily(),
+                },
+              };
+            }),
+          ...customTextBoxes.map((box) => ({
+            x: box.x,
+            y: box.y,
+            text: box.text,
+            xanchor: 'left',
+            yanchor: 'bottom',
+            xshift: 12,
+            yshift: -12,
+            showarrow: false,
+            bordercolor: '#1d4ed8',
+            borderwidth: 1.5,
+            borderpad: 4,
+            bgcolor: '#eff6ff',
+            opacity: 0.98,
+            font: {
+              size: getAnnotationFontSize(),
+              color: '#1e3a8a',
+              family: getAnnotationFontFamily(),
+            },
+          })),
+        ]
       : [],
   };
 
@@ -943,6 +1006,14 @@ function editPointAnnotation(point) {
   const next = window.prompt('請輸入註解（留白可清除）', current);
   if (next === null) return false;
   point.note = next.trim();
+  return true;
+}
+function addTextBoxAt(x, y) {
+  const text = window.prompt('請輸入文字方塊內容（取消則不新增）', '');
+  if (text === null) return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  customTextBoxes.push({ x, y, text: trimmed });
   return true;
 }
 
@@ -1058,17 +1129,36 @@ function bindEvents() {
   });
   document.getElementById('setFocusPoint').onclick = () => {
     focusMode = !focusMode;
-    if (focusMode) annotationMode = false;
+    if (focusMode) {
+      annotationMode = false;
+      textBoxMode = false;
+    }
     syncFocusButtonText();
     syncAnnotationButtonText();
+    syncTextBoxButtonText();
     setStatus(focusMode ? '已開啟關注模式，左鍵點既有點可套用關注設定（emoji 會以表情符號覆蓋顯示）。' : '已關閉關注模式。');
   };
   document.getElementById('setAnnotationPoint').onclick = () => {
     annotationMode = !annotationMode;
-    if (annotationMode) focusMode = false;
+    if (annotationMode) {
+      focusMode = false;
+      textBoxMode = false;
+    }
     syncAnnotationButtonText();
     syncFocusButtonText();
+    syncTextBoxButtonText();
     setStatus(annotationMode ? '已開啟註解模式，左鍵點既有點可新增/修改註解。' : '已關閉註解模式。');
+  };
+  document.getElementById('setTextBox').onclick = () => {
+    textBoxMode = !textBoxMode;
+    if (textBoxMode) {
+      focusMode = false;
+      annotationMode = false;
+    }
+    syncTextBoxButtonText();
+    syncFocusButtonText();
+    syncAnnotationButtonText();
+    setStatus(textBoxMode ? '已開啟文字方塊模式，左鍵點圖可新增文字方塊。' : '已關閉文字方塊模式。');
   };
   document.getElementById('toggleEdges').onclick = async () => { showEdges = !showEdges; await redraw(); };
   document.getElementById('toggleLabels').onclick = async () => { showLabels = !showLabels; await redraw(); };
@@ -1135,9 +1225,10 @@ function bindEvents() {
   document.getElementById('clear').onclick = async () => withStatus('正在清空點位...', async () => {
     applyPointMutation(() => {
       selectedPoints = [];
+      customTextBoxes = [];
     });
     await redraw();
-  }, '點位已清空。');
+  }, '點位與文字方塊已清空。');
   document.getElementById('undo').onclick = async () => withStatus('正在還原上一步...', async () => {
     if (!undoLastPointChange()) {
       throw new Error('目前沒有可還原的操作。');
@@ -1179,6 +1270,13 @@ function bindEvents() {
     if (!isInsidePlot) return;
     const x = xAxis.p2d(plotX);
     const y = yAxis.p2d(plotY);
+    if (textBoxMode) {
+      applyPointMutation(() => {
+        addTextBoxAt(Math.round(x), Math.round(y));
+      });
+      await redraw();
+      return;
+    }
     applyPointMutation(() => {
       addPoint(x, y);
     });
@@ -1235,6 +1333,7 @@ function bindEvents() {
 (async function init() {
   syncFocusButtonText();
   syncAnnotationButtonText();
+  syncTextBoxButtonText();
   syncAnnotationVisibilityText();
   syncDistanceVisibilityText();
   syncViewControlText();
