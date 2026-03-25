@@ -434,6 +434,11 @@ function formatTimeLabel(isoText) {
   if (Number.isNaN(date.getTime())) return '未知時間';
   return date.toLocaleString('zh-Hant-TW', { hour12: false });
 }
+function formatDistanceValue(distance) {
+  const numericDistance = Number(distance);
+  if (!Number.isFinite(numericDistance)) return '距離: --';
+  return `距離: ${numericDistance.toFixed(2)}`;
+}
 function clonePoints(points) {
   return (points || []).map((p) => ({
     x: Number(p.x),
@@ -876,7 +881,7 @@ async function redraw() {
     edges.forEach(e => {
       traces.push({
         x: [e.x1, e.x2], y: [e.y1, e.y2], mode: 'lines', type: 'scatter',
-        line: { color: '#333', width: 1 }, hovertemplate: `距離: ${e.distance}<extra></extra>`
+        line: { color: '#333', width: 1 }, hovertemplate: `${formatDistanceValue(e.distance)}<extra></extra>`
       });
     });
     if (showDistanceLabels) {
@@ -887,9 +892,9 @@ async function redraw() {
           y: labelEdges.map((e) => (e.y1 + e.y2) / 2),
           mode: 'text',
           type: 'scatter',
-          text: labelEdges.map((e) => String(e.distance)),
+          text: labelEdges.map((e) => `<i>${formatDistanceValue(e.distance)}</i>`),
           textposition: 'middle center',
-          textfont: { size: 12, color: '#0f172a' },
+          textfont: { size: 11, color: '#64748b' },
           hoverinfo: 'skip',
         });
       }
