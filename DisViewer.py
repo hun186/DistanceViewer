@@ -63,6 +63,11 @@ class InteractivePlot:
         self.label_font_name_value = plt.rcParams.get('font.sans-serif', ['DejaVu Sans'])[0]
         self.label_font_size = 12
         self.label_text_color = 'yellow'
+        self.label_styles = []  # 每個點對應的文字方塊設定（文字、顏色、字級、位移）
+        self.selected_label_index = None
+        self.dragging_label = False
+        self.label_press_origin = None
+        self.label_drag_saved = False
 
         # 增加文本框，移到畫面右側
         self.text_box_label_ax = self.fig.add_axes([0.75, 0.7, 0.2, 0.04])
@@ -127,6 +132,18 @@ class InteractivePlot:
         self.label_color_buttons = RadioButtons(self.label_color_ax, ('yellow', 'white', 'black', 'red', 'cyan'))
         self.label_color_buttons.on_clicked(self.update_label_color)
 
+        self.label_text_edit_ax = self.fig.add_axes([0.75, 0.075, 0.2, 0.04])
+        self.label_text_edit_box = TextBox(
+            self.label_text_edit_ax,
+            '文字:' if use_chinese else 'Text:',
+            initial=""
+        )
+        self.label_text_edit_box.on_submit(self.update_selected_label_text)
+
+        self.delete_label_ax = self.fig.add_axes([0.75, 0.03, 0.2, 0.04])
+        self.delete_label_button = Button(self.delete_label_ax, '刪除文字' if use_chinese else 'Delete Label')
+        self.delete_label_button.on_clicked(self.delete_selected_label)
+
         # 資源和神蹟對話框
         self.resource_ax = self.fig.add_axes([0.04, 0.85, 0.07, 0.05])
         self.resource_text = TextBox(self.resource_ax, '資源:', initial="")
@@ -163,6 +180,9 @@ class InteractivePlot:
                 "- 邊: 切換是否顯示邊\n"
                 "- 說明: 切換是否顯示說明文字\n"
                 "- 新增選取點: 新增符合條件的點\n"
+                "- 點擊文字方塊: 編輯文字/套用色彩字級\n"
+                "- 拖曳文字方塊: 調整文字位置\n"
+                "- 刪除文字: 清空選取文字方塊\n"
                 "- Ctrl+Z: 還原上一步\n"
                 "- Ctrl+Y: 取消還原上一步\n"
             )
@@ -180,6 +200,9 @@ class InteractivePlot:
                 "- Edges: Toggle edge visibility\n"
                 "- Labels: Toggle label visibility\n"
                 "- Add Points: Add points matching criteria\n"
+                "- Click Label: Edit text / apply style\n"
+                "- Drag Label: Move label box\n"
+                "- Delete Label: Clear selected label\n"
                 "- Ctrl+Z: Undo\n"
                 "- Ctrl+Y: Redo\n"
             )
@@ -297,9 +320,49 @@ class InteractivePlot:
             wonder = data_dict[coord]['神蹟']
             self.points.append([x, y])
             self.colors.append(self.current_color)
+            self.label_styles.append(self.build_default_label_style(x, y, resource, wonder))
             self.redraw()
             self.log_action(f"新增點: ({x}, {y}) 資源: {resource}, 神蹟: {wonder}")
             self.fig.canvas.draw_idle()
+
+    def build_default_label_style(self, x, y, resource, wonder):
+        return {
+            "text": f"({x}, {y})\n{resource}\n{wonder}",
+            "color": self.label_text_color,
+            "size": self.label_font_size,
+            "offset": [1, -1],
+        }
+
+    def ensure_label_styles(self):
+        while len(self.label_styles) < len(self.points):
+            x, y = self.points[len(self.label_styles)]
+            coord = (x, y)
+            resource = data_dict.get(coord, {}).get('資源', '')
+            wonder = data_dict.get(coord, {}).get('神蹟', '')
+            self.label_styles.append(self.build_default_label_style(x, y, resource, wonder))
+        if len(self.label_styles) > len(self.points):
+            self.label_styles = self.label_styles[:len(self.points)]
+
+    def get_label_anchor(self, idx):
+        x, y = self.points[idx]
+        offset_x, offset_y = self.label_styles[idx].get("offset", [1, -1])
+        return x + offset_x, y + offset_y
+
+    def find_label_index_near(self, x, y):
+        for i in range(len(self.points) - 1, -1, -1):
+            label_x, label_y = self.get_label_anchor(i)
+            if self.distance((label_x, label_y), (x, y)) < 3.0:
+                return i
+        return None
+
+    def select_label(self, idx):
+        self.selected_label_index = idx
+        if idx is None:
+            return
+        style = self.label_styles[idx]
+        self.label_text_edit_box.set_val(style.get("text", ""))
+        self.log_action(f"選擇文字方塊: 點 {idx + 1}")
+        self.redraw()
 
     def on_click(self, event):
         if event.inaxes != self.ax:
@@ -310,7 +373,19 @@ class InteractivePlot:
             return
 
         if event.button == 1:  # 左鍵選取或新增點
+            label_idx = self.find_label_index_near(x, y)
+            if label_idx is not None:
+                self.select_label(label_idx)
+                self.selected_point_index = None
+                self.press = (x, y)
+                self.dragging = False
+                self.dragging_label = False
+                self.label_drag_saved = False
+                self.label_press_origin = self.label_styles[label_idx]["offset"][:]
+                return
+
             self.selected_point_index = None  # 重置选中点的索引
+            self.selected_label_index = None
             for i, point in enumerate(self.points):
                 if self.distance(point, (x, y)) < self.select_threshold:
                     self.selected_point_index = i
@@ -324,11 +399,20 @@ class InteractivePlot:
             self.dragging = False
 
         elif event.button == 3:  # 右鍵刪除點
+            label_idx = self.find_label_index_near(x, y)
+            if label_idx is not None:
+                self.save_history()
+                self.label_styles[label_idx]["text"] = ""
+                self.selected_label_index = label_idx
+                self.redraw()
+                self.log_action(f"清空文字方塊: 點 {label_idx + 1}")
+                return
             for i, point in enumerate(self.points):
                 if self.distance(point, (x, y)) < self.select_threshold:
                     self.save_history()  # 保存当前状态到历史记录
                     self.points.pop(i)
                     self.colors.pop(i)  # 移除相应的颜色
+                    self.label_styles.pop(i)
                     self.redraw()
                     self.log_action(f"移除點: ({point[0]}, {point[1]})")
                     return
@@ -349,9 +433,14 @@ class InteractivePlot:
                 self.points[self.selected_point_index] = (x, y)
                 self.redraw()
                 self.log_action(f"移動點至: ({x}, {y})")
+        elif self.dragging_label and self.selected_label_index is not None:
+            self.log_action(f"移動文字方塊: 點 {self.selected_label_index + 1}")
 
         self.press = None  # 结束拖动
         self.dragging = False
+        self.dragging_label = False
+        self.label_press_origin = None
+        self.label_drag_saved = False
 
     def on_motion(self, event):
         if event.inaxes != self.ax:
@@ -362,7 +451,16 @@ class InteractivePlot:
         self.cursor_text.set_position((x + 2, y))
         self.cursor_text.set_text(f'({x}, {y})')
 
-        if self.press is not None and self.selected_point_index is not None:  # 如果正在拖动
+        if self.press is not None and self.selected_label_index is not None and self.label_press_origin is not None:
+            if self.distance(self.press, (x, y)) > self.drag_threshold:
+                if not self.label_drag_saved:
+                    self.save_history()
+                    self.label_drag_saved = True
+                self.dragging_label = True
+                point_x, point_y = self.points[self.selected_label_index]
+                self.label_styles[self.selected_label_index]["offset"] = [x - point_x, y - point_y]
+                self.redraw()
+        elif self.press is not None and self.selected_point_index is not None:  # 如果正在拖动
             if self.distance(self.press, (x, y)) > self.drag_threshold:
                 self.dragging = True
                 if xliml <= x <= xlimr and yliml <= y <= ylimr:
@@ -393,28 +491,28 @@ class InteractivePlot:
 
     def save_history(self):
         """保存当前状态到历史记录"""
-        self.history.append((self.points.copy(), self.colors.copy()))  # 保存points和colors的当前状态
+        self.history.append((self.points.copy(), self.colors.copy(), json.loads(json.dumps(self.label_styles))))  # 保存points和colors的当前状态
         self.redo_history.clear()  # 新動作產生後，清除可重做紀錄
 
     def undo(self):
         """撤销上一步操作"""
         if self.history:
-            self.redo_history.append((self.points.copy(), self.colors.copy()))
-            self.points, self.colors = self.history.pop()  # 恢复上一步状态
+            self.redo_history.append((self.points.copy(), self.colors.copy(), json.loads(json.dumps(self.label_styles))))
+            self.points, self.colors, self.label_styles = self.history.pop()  # 恢复上一步状态
             self.redraw()
             self.log_action("撤銷上一步")
 
     def redo(self):
         """取消撤銷上一步操作"""
         if self.redo_history:
-            self.history.append((self.points.copy(), self.colors.copy()))
-            self.points, self.colors = self.redo_history.pop()
+            self.history.append((self.points.copy(), self.colors.copy(), json.loads(json.dumps(self.label_styles))))
+            self.points, self.colors, self.label_styles = self.redo_history.pop()
             self.redraw()
             self.log_action("取消還原上一步")
 
     def save_points(self, event=None):
         """保存当前点到文件"""
-        data = {'points': self.points, 'colors': self.colors}
+        data = {'points': self.points, 'colors': self.colors, 'labels': self.label_styles}
         with open(self.save_file, 'w') as f:
             json.dump(data, f)
         self.log_action(f"已保存到 {self.save_file}")
@@ -432,6 +530,8 @@ class InteractivePlot:
                     len(data['points']) == len(data['colors'])):
                     self.points = data['points']
                     self.colors = data['colors']
+                    self.label_styles = data.get('labels', [])
+                    self.ensure_label_styles()
                     # 載入後先自動切到全景，讓使用者先掌握整體分佈
                     self.full_view = True
                     self.point_view_limits = None
@@ -445,6 +545,7 @@ class InteractivePlot:
             print(f"{self.save_file} 不存在" if use_chinese else f"{self.save_file} does not exist")
 
     def redraw(self):
+        self.ensure_label_styles()
         self.ax.clear()
         self.set_view_limits()
         self.ax.set_aspect('equal', 'box')  # 設置坐標軸比例為1:1
@@ -458,7 +559,7 @@ class InteractivePlot:
         self.ax.set_title(title)
     
         show_labels = self.show_labels# and len(self.points) <= 30
-        for (x, y), color in zip(self.points, self.colors):
+        for idx, ((x, y), color) in enumerate(zip(self.points, self.colors)):
             if not (xliml <= x <= xlimr and yliml <= y <= ylimr):
                 continue
             coord = (x, y)
@@ -466,15 +567,23 @@ class InteractivePlot:
             wonder = data_dict.get(coord, {}).get('神蹟', '')
             self.ax.scatter(x, y, color=color, zorder=3)  # 确保点位于上层
             if show_labels:
+                style = self.label_styles[idx]
+                label_x, label_y = self.get_label_anchor(idx)
                 self.ax.text(
-                    x + 1, y - 1,
-                    f'({x}, {y})\n{resource}\n{wonder}',
-                    fontsize=self.label_font_size,
-                    color=self.label_text_color,
+                    label_x, label_y,
+                    style.get("text", f'({x}, {y})\n{resource}\n{wonder}'),
+                    fontsize=style.get("size", self.label_font_size),
+                    color=style.get("color", self.label_text_color),
                     fontname=self.label_font_name_value,
                     fontweight='bold',
                     zorder=6,
-                    bbox=dict(facecolor='black', edgecolor='white', alpha=0.8, boxstyle='round,pad=0.25')
+                    bbox=dict(
+                        facecolor='black',
+                        edgecolor='gold' if self.selected_label_index == idx else 'white',
+                        linewidth=2 if self.selected_label_index == idx else 1,
+                        alpha=0.8,
+                        boxstyle='round,pad=0.25'
+                    )
                 )
 
         self._drawn_edges = set()
@@ -571,7 +680,12 @@ class InteractivePlot:
             if size < 6 or size > 36:
                 raise ValueError
             self.label_font_size = size
-            self.log_action(f"標籤字級: {size}")
+            if self.selected_label_index is not None:
+                self.save_history()
+                self.label_styles[self.selected_label_index]["size"] = size
+                self.log_action(f"文字方塊字級: {size}")
+            else:
+                self.log_action(f"預設標籤字級: {size}")
             self.redraw()
         except ValueError:
             print("字級需為 6~36 的整數" if use_chinese else "Font size must be an integer between 6 and 36")
@@ -580,7 +694,28 @@ class InteractivePlot:
     def update_label_color(self, color):
         """更新標籤文字顏色"""
         self.label_text_color = color
-        self.log_action(f"標籤文字顏色: {color}")
+        if self.selected_label_index is not None:
+            self.save_history()
+            self.label_styles[self.selected_label_index]["color"] = color
+            self.log_action(f"文字方塊顏色: {color}")
+        else:
+            self.log_action(f"預設標籤文字顏色: {color}")
+        self.redraw()
+
+    def update_selected_label_text(self, text):
+        if self.selected_label_index is None:
+            return
+        self.save_history()
+        self.label_styles[self.selected_label_index]["text"] = text
+        self.log_action(f"更新文字方塊內容: 點 {self.selected_label_index + 1}")
+        self.redraw()
+
+    def delete_selected_label(self, event=None):
+        if self.selected_label_index is None:
+            return
+        self.save_history()
+        self.label_styles[self.selected_label_index]["text"] = ""
+        self.log_action(f"刪除文字方塊內容: 點 {self.selected_label_index + 1}")
         self.redraw()
 
 if __name__ == "__main__":
