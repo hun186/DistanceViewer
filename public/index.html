@@ -318,6 +318,7 @@ const EXPORT_IMAGE_SCALE = 3;
 let customTextBoxes = [];
 let selectedTextBoxIndex = -1;
 let textBoxDragState = null;
+let suppressNextTextBoxClick = false;
 
 function endpoint(path) { return path; }
 function getNewPointColor() { return document.getElementById('newPointColor').value; }
@@ -1128,18 +1129,29 @@ function findNearestTextBoxIndex(clientX, clientY) {
   const point = clientToDataPoint(clientX, clientY);
   if (!point) return -1;
   const { xAxis, yAxis, rect } = point;
-  let minDist = Infinity;
+  let minScore = Infinity;
   let minIndex = -1;
   customTextBoxes.forEach((box, idx) => {
-    const px = rect.left + xAxis._offset + xAxis.d2p(box.x);
-    const py = rect.top + yAxis._offset + yAxis.d2p(box.y);
-    const dist = Math.hypot(clientX - px, clientY - py);
-    if (dist < minDist) {
-      minDist = dist;
+    const anchorPx = rect.left + xAxis._offset + xAxis.d2p(box.x);
+    const anchorPy = rect.top + yAxis._offset + yAxis.d2p(box.y);
+    const centerX = anchorPx + 12;
+    const centerY = anchorPy - 12;
+    const fontSize = Number(box.fontSize) || getAnnotationFontSize();
+    const textLength = (box.text || '').length;
+    const halfWidth = Math.min(220, Math.max(48, textLength * fontSize * 0.3));
+    const halfHeight = Math.max(20, fontSize * 0.9);
+    const dx = Math.abs(clientX - centerX);
+    const dy = Math.abs(clientY - centerY);
+    const inRect = dx <= halfWidth && dy <= halfHeight;
+    const edgeDx = Math.max(0, dx - halfWidth);
+    const edgeDy = Math.max(0, dy - halfHeight);
+    const score = inRect ? Math.hypot(dx, dy) * 0.5 : Math.hypot(edgeDx, edgeDy);
+    if (score < minScore) {
+      minScore = score;
       minIndex = idx;
     }
   });
-  return minDist <= 18 ? minIndex : -1;
+  return minScore <= 22 ? minIndex : -1;
 }
 
 function bindEvents() {
@@ -1336,6 +1348,10 @@ function bindEvents() {
     if (!point) return;
     const { x, y } = point;
     if (textBoxMode) {
+      if (suppressNextTextBoxClick) {
+        suppressNextTextBoxClick = false;
+        return;
+      }
       if (textBoxDragState?.moved) {
         textBoxDragState = null;
         return;
@@ -1411,6 +1427,7 @@ function bindEvents() {
   });
   document.addEventListener('mouseup', () => {
     if (!textBoxDragState) return;
+    suppressNextTextBoxClick = textBoxDragState.moved;
     textBoxDragState = null;
   });
   document.addEventListener('keydown', async (event) => {
