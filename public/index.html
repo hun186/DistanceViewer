@@ -439,6 +439,11 @@ function formatDistanceValue(distance) {
   if (!Number.isFinite(numericDistance)) return '距離: --';
   return `距離: ${numericDistance.toFixed(2)}`;
 }
+function formatCompactDistanceValue(distance) {
+  const numericDistance = Number(distance);
+  if (!Number.isFinite(numericDistance)) return '--';
+  return numericDistance.toFixed(1);
+}
 function clonePoints(points) {
   return (points || []).map((p) => ({
     x: Number(p.x),
@@ -892,7 +897,7 @@ async function redraw() {
           y: labelEdges.map((e) => (e.y1 + e.y2) / 2),
           mode: 'text',
           type: 'scatter',
-          text: labelEdges.map((e) => `<i>${formatDistanceValue(e.distance)}</i>`),
+          text: labelEdges.map((e) => `<i>${formatCompactDistanceValue(e.distance)}</i>`),
           textposition: 'middle center',
           textfont: { size: 11, color: '#64748b' },
           hoverinfo: 'skip',
