@@ -32,6 +32,16 @@ Open <http://127.0.0.1:5000>.
 - Toggle Delaunay edges and labels
 - Save/load point list in browser `localStorage`
 
+### Data source behavior (cold-start optimized)
+
+- Web API now prefers repo-local `data/islands_data.json` as primary source to avoid Excel parsing during cold start.
+- Excel (`Ikariam島嶼_New_*.xlsx`) is treated as offline update source.
+- To refresh JSON from latest Excel:
+
+```bash
+python scripts/build_data_json.py
+```
+
 ## Deploy to Vercel
 
 1. Install Vercel CLI and login:
