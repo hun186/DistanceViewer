@@ -1,22 +1,12 @@
 {
   "format": "distanceViewer.save.v2",
-  "exportedAt": "2026-03-24T11:02:00.322Z",
+  "exportedAt": "2026-03-25T06:51:47.191Z",
   "save": {
-    "id": "save_1774350103307_8e9mn0",
+    "id": "save_1774421505950_rxqmz1",
     "name": "AFBA",
-    "createdAt": "2026-03-24T11:01:43.306Z",
-    "updatedAt": "2026-03-24T11:01:43.306Z",
+    "createdAt": "2026-03-25T06:51:45.950Z",
+    "updatedAt": "2026-03-25T06:51:45.950Z",
     "points": [
-      {
-        "x": 17,
-        "y": 11,
-        "resource": "石",
-        "wonder": "熔爐",
-        "color": "#fa0000",
-        "note": "",
-        "focusMarker": "",
-        "focusEmoji": ""
-      },
       {
         "x": 21,
         "y": 51,
@@ -118,16 +108,6 @@
         "focusEmoji": ""
       },
       {
-        "x": 44,
-        "y": 74,
-        "resource": "石",
-        "wonder": "哈迪斯",
-        "color": "#000000",
-        "note": "",
-        "focusMarker": "",
-        "focusEmoji": ""
-      },
-      {
         "x": 73,
         "y": 15,
         "resource": "石",
@@ -206,6 +186,36 @@
         "note": "阿華",
         "focusMarker": "emoji",
         "focusEmoji": "🏠"
+      },
+      {
+        "x": 63,
+        "y": 72,
+        "resource": "石",
+        "wonder": "熔爐",
+        "color": "#ff0000",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      },
+      {
+        "x": 13,
+        "y": 32,
+        "resource": "石",
+        "wonder": "泰坦",
+        "color": "#7f00ff",
+        "note": "",
+        "focusMarker": "",
+        "focusEmoji": ""
+      }
+    ],
+    "textBoxes": [
+      {
+        "x": 1,
+        "y": 93,
+        "text": "群島編織者：WOOD、Eeon",
+        "textColor": "#7c3aed",
+        "bgColor": "#fff4d6",
+        "fontSize": 12
       }
     ]
   }
